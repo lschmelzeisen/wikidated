@@ -8,4 +8,3 @@
  */
 
 rootProject.name = "kg-evolve"
-include("kg-evolve")
