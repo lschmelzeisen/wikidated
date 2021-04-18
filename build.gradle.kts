@@ -1,10 +1,11 @@
 plugins {
     application
+    id("com.diffplug.spotless") version "5.12.1"
 }
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(16))
+        languageVersion.set(JavaLanguageVersion.of(11))
     }
 }
 
@@ -23,4 +24,21 @@ dependencies {
 
 application {
     mainClass.set("com.lschmelzeisen.kgevolve.KgEvolve")
+}
+
+spotless {
+    format("misc") {
+        target("*.gitignore")
+        trimTrailingWhitespace()
+        indentWithSpaces(4)
+        endWithNewline()
+    }
+    java {
+        googleJavaFormat().aosp()
+        licenseHeaderFile(file("${project.rootDir}/LICENSE.header"))
+    }
+    kotlinGradle {
+        target("*.gradle.kts")
+        ktlint()
+    }
 }
