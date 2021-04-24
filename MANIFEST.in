@@ -1,0 +1,6 @@
+include LICENSE
+include pyproject.toml
+include README.rst
+include setup.cfg
+include setup.py
+recursive-include src *.py *.typed *.ipynb

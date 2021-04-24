@@ -1,8 +1,42 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+.eggs
+/src/*.egg-info/
+
+# Unit test / coverage reports
+.coverage*
+.pytest_cache/
+.nox/
+tests-coverage
+tests-report.html
+
+# mypy
+.mypy_cache/
+
+# IDE files
+.idea/
+
+# Virtual environments
+.venv/
+
+# Project specific generated files
+/src/*/_version.py
+tests/util/.requests_cache.jsonl
+
 # Ignore Gradle project-specific cache directory
 .gradle
 
-# Ignore Gradle build output directory
-build
+# Config files
+.config/
 
-# IDEA project file
-.idea
+# Data directory
+data/
+
+# Notebooks that are just used for experimenting
+notebooks/xx-*
