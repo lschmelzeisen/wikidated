@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.lschmelzeisen.kgevolve;
+package wikidatadumpprocessor;
 
 import java.util.Optional;
 import java.util.StringJoiner;

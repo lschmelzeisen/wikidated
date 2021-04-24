@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.lschmelzeisen.kgevolve;
+package wikidatadumpprocessor;
 
 import java.io.BufferedReader;
 import java.io.EOFException;
@@ -80,6 +80,8 @@ public class FastRevisionDumpFileProcessor {
     }
 
     private final MwRevisionProcessor revisionProcessor;
+    public int numPages = 0;
+    public int numRevision = 0;
 
     public FastRevisionDumpFileProcessor(MwRevisionProcessor revisionProcessor) {
         this.revisionProcessor = revisionProcessor;
@@ -222,6 +224,7 @@ public class FastRevisionDumpFileProcessor {
     }
 
     private void processPage(BufferedReader dumpContents) throws IOException {
+        ++numPages;
         String prefixedTitle =
                 XmlEscape.unescapeXml(extractValue(dumpContents.readLine(), "title"));
         int namespace = Integer.parseInt(extractValue(dumpContents.readLine(), "ns"));
@@ -252,6 +255,7 @@ public class FastRevisionDumpFileProcessor {
             int pageId,
             @SuppressWarnings("OptionalUsedAsFieldOrParameterType") Optional<String> redirect)
             throws IOException {
+        ++numRevision;
         long revisionId = Long.parseLong(extractValue(dumpContents.readLine(), "id"));
 
         String line = dumpContents.readLine();

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.lschmelzeisen.kgevolve;
+package wikidatadumpprocessor;
 
 import examples.ExampleHelpers;
 import java.io.IOException;
@@ -26,13 +26,15 @@ import org.wikidata.wdtk.datamodel.interfaces.Sites;
 import org.wikidata.wdtk.dumpfiles.EntityTimerProcessor;
 import org.wikidata.wdtk.dumpfiles.MwLocalDumpFile;
 import org.wikidata.wdtk.dumpfiles.MwSitesDumpFileProcessor;
+import org.wikidata.wdtk.dumpfiles.WikibaseRevisionProcessor;
 import org.wikidata.wdtk.rdf.PropertyRegister;
 
-public class KgEvolve {
+public class WikidataDumpProcessor {
     public static void main(String[] args) throws IOException, InterruptedException {
         ExampleHelpers.configureLogging();
 
-        Path fullDumpFilesDirectory = Paths.get("dumpfiles/wikidatawiki/full-20210401");
+        //        Path fullDumpFilesDirectory = Paths.get("dumpfiles/wikidatawiki/full-20210401");
+        Path fullDumpFilesDirectory = Paths.get("../data/dumpfiles");
         Path dumpFile =
                 fullDumpFilesDirectory.resolve(
                         // "wikidatawiki-20210401-pages-meta-history1.xml-p1p192.7z");
@@ -40,7 +42,9 @@ public class KgEvolve {
 
         MwLocalDumpFile sitesTableDump =
                 new MwLocalDumpFile(
-                        "dumpfiles/wikidatawiki/sites-20210401/wikidatawiki-20210401-sites.sql.gz");
+                        fullDumpFilesDirectory
+                                .resolve("wikidatawiki-20210401-sites.sql.gz")
+                                .toString());
         MwSitesDumpFileProcessor sitesDumpFileProcessor = new MwSitesDumpFileProcessor();
         sitesDumpFileProcessor.processDumpFileContents(
                 sitesTableDump.getDumpFileStream(), sitesTableDump);
@@ -50,7 +54,7 @@ public class KgEvolve {
 
         var rdfSerializer =
                 new MyRdfSerializer(
-                        Paths.get("triples-ALL_ENTITIES_ALL_EXACT_DATA.ttl"),
+                        Paths.get("triples-ITEMS_SIMPLE_STATEMENTS.ttl"),
                         sites,
                         PropertyRegister.getWikidataPropertyRegister(),
                         Datamodel.SITE_WIKIDATA);
@@ -59,13 +63,17 @@ public class KgEvolve {
         entityDocumentProcessor.registerEntityDocumentProcessor(entityTimerProcessor);
         //        entityDocumentProcessor.registerEntityDocumentProcessor(rdfSerializer);
 
-        var dumpProcessor = new FastRevisionDumpFileProcessor(rdfSerializer);
-        //                        entityTimerProcessor);
-        //                                new WikibaseRevisionProcessor(
-        //                                entityDocumentProcessor, "http://www.wikidata.org/"));
+        var dumpProcessor =
+                new FastRevisionDumpFileProcessor( // rdfSerializer);
+                        new WikibaseRevisionProcessor(
+                                entityDocumentProcessor, "http://www.wikidata.org/"));
 
         entityTimerProcessor.open();
+        System.out.println("#Pages: " + dumpProcessor.numPages);
+        System.out.println("#Revisions: " + dumpProcessor.numRevision);
         dumpProcessor.processDumpFile(dumpFile);
+        System.out.println("#Pages: " + dumpProcessor.numPages);
+        System.out.println("#Revisions: " + dumpProcessor.numRevision);
         entityTimerProcessor.close();
     }
 }

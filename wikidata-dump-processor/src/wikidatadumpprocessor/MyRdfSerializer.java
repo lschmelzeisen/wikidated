@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.lschmelzeisen.kgevolve;
+package wikidatadumpprocessor;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -97,8 +97,10 @@ public class MyRdfSerializer implements MwRevisionProcessor {
             try (var inMemoryStream = new ByteArrayOutputStream()) {
                 var rdfWriter = new RdfWriter(RDFFormat.TURTLE, inMemoryStream);
                 var rdfConverter = new RdfConverter(rdfWriter, this.sites, this.propertyRegister);
-                rdfConverter.setTasks(RdfSerializer.TASK_ALL_ENTITIES | RdfSerializer.TASK_ALL_EXACT_DATA);
-//                rdfConverter.setTasks(RdfSerializer.TASK_ITEMS | RdfSerializer.TASK_SIMPLE_STATEMENTS);
+                rdfConverter.setTasks(
+                        RdfSerializer.TASK_ITEMS | RdfSerializer.TASK_SIMPLE_STATEMENTS);
+                //                rdfConverter.setTasks(RdfSerializer.TASK_ITEMS |
+                // RdfSerializer.TASK_SIMPLE_STATEMENTS);
                 rdfWriter.start();
 
                 // TODO: redirects!
