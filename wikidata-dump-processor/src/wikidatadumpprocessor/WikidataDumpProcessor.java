@@ -30,21 +30,12 @@ import org.wikidata.wdtk.dumpfiles.WikibaseRevisionProcessor;
 import org.wikidata.wdtk.rdf.PropertyRegister;
 
 public class WikidataDumpProcessor {
-    public static void main(String[] args) throws IOException, InterruptedException {
+
+    public static void processDump(Path dumpFile, Path sitesTableDumpFile)
+            throws IOException, InterruptedException {
         ExampleHelpers.configureLogging();
 
-        //        Path fullDumpFilesDirectory = Paths.get("dumpfiles/wikidatawiki/full-20210401");
-        Path fullDumpFilesDirectory = Paths.get("../data/dumpfiles");
-        Path dumpFile =
-                fullDumpFilesDirectory.resolve(
-                        // "wikidatawiki-20210401-pages-meta-history1.xml-p1p192.7z");
-                        "wikidatawiki-20210401-pages-meta-history25.xml-p67174382p67502430.7z");
-
-        MwLocalDumpFile sitesTableDump =
-                new MwLocalDumpFile(
-                        fullDumpFilesDirectory
-                                .resolve("wikidatawiki-20210401-sites.sql.gz")
-                                .toString());
+        MwLocalDumpFile sitesTableDump = new MwLocalDumpFile(sitesTableDumpFile.toString());
         MwSitesDumpFileProcessor sitesDumpFileProcessor = new MwSitesDumpFileProcessor();
         sitesDumpFileProcessor.processDumpFileContents(
                 sitesTableDump.getDumpFileStream(), sitesTableDump);
@@ -61,7 +52,7 @@ public class WikidataDumpProcessor {
 
         var entityDocumentProcessor = new EntityDocumentProcessorBroker();
         entityDocumentProcessor.registerEntityDocumentProcessor(entityTimerProcessor);
-        //        entityDocumentProcessor.registerEntityDocumentProcessor(rdfSerializer);
+        // entityDocumentProcessor.registerEntityDocumentProcessor(rdfSerializer);
 
         var dumpProcessor =
                 new FastRevisionDumpFileProcessor( // rdfSerializer);
@@ -75,5 +66,14 @@ public class WikidataDumpProcessor {
         System.out.println("#Pages: " + dumpProcessor.numPages);
         System.out.println("#Revisions: " + dumpProcessor.numRevision);
         entityTimerProcessor.close();
+    }
+
+    public static void main(String[] args) throws IOException, InterruptedException {
+        Path fullDumpFilesDirectory = Paths.get("../data/dumpfiles");
+        processDump(
+                fullDumpFilesDirectory.resolve(
+                        // "wikidatawiki-20210401-pages-meta-history1.xml-p1p192.7z");
+                        "wikidatawiki-20210401-pages-meta-history25.xml-p67174382p67502430.7z"),
+                fullDumpFilesDirectory.resolve("wikidatawiki-20210401-sites.sql.gz"));
     }
 }

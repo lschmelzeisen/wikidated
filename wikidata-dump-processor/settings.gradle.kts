@@ -1,1 +1,1 @@
-rootProject.name = "kg-evolve"
+rootProject.name = "wikidata-dump-processor"
