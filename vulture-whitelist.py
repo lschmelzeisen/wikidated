@@ -2,3 +2,7 @@ _.error_on_external_run  # unused attribute (/home/lschmelzeisen/Repositories/kg
 _.reuse_existing_virtualenvs  # unused attribute (/home/lschmelzeisen/Repositories/kg-evolve/noxfile.py:21)
 _.stop_on_first_error  # unused attribute (/home/lschmelzeisen/Repositories/kg-evolve/noxfile.py:22)
 test  # unused function (/home/lschmelzeisen/Repositories/kg-evolve/noxfile.py:25)
+data_dir  # unused variable (/home/lschmelzeisen/Repositories/kg-evolve/src/kg_evolve/settings_.py:23)
+Config  # unused class (/home/lschmelzeisen/Repositories/kg-evolve/src/kg_evolve/settings_.py:27)
+search_path  # unused variable (/home/lschmelzeisen/Repositories/kg-evolve/src/kg_evolve/settings_.py:28)
+kg_evolve  # unused variable (/home/lschmelzeisen/Repositories/kg-evolve/src/kg_evolve/settings_.py:30)
