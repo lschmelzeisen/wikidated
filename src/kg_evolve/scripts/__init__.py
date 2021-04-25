@@ -13,20 +13,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-from pathlib import Path
-
-from nasty_utils import LoggingSettings, Settings, SettingsConfig
-
-
-class KgEvolveInternalSettings(Settings):
-    data_dir: Path
-    wikidata_dump_version: str
-    wikidata_dump_mirror_base: str
-
-
-class KgEvolveSettings(LoggingSettings):
-    class Config(SettingsConfig):
-        search_path = Path("kg-evolve.toml")
-
-    kg_evolve: KgEvolveInternalSettings

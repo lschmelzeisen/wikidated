@@ -246,16 +246,18 @@ class WikidataDump:
         line = next(lines)
         if cls._is_opening_tag(line, "comment"):
             if 'deleted="deleted"' not in line:
-                comment = cls._unescape_xml(
-                    cls._extract_value_multiline(chain((line,), lines), "comment")
-                )
+                comment = cls._extract_value_multiline(chain((line,), lines), "comment")
+                if comment:
+                    comment = cls._unescape_xml(comment)
         else:
             lines = chain((line,), lines)
 
         model = cls._extract_value(next(lines), "model")
         format_ = cls._extract_value(next(lines), "format")
 
-        text = cls._unescape_xml(cls._extract_value_multiline(lines, "text"))
+        text = cls._extract_value_multiline(lines, "text")
+        if text:
+            text = cls._unescape_xml(text)
 
         sha1 = None
         line = next(lines)
@@ -284,9 +286,7 @@ class WikidataDump:
         )
 
     @classmethod
-    def _unescape_xml(cls, value: Optional[str]) -> Optional[str]:
-        if not value:
-            return None
+    def _unescape_xml(cls, value: str) -> str:
         return unescape(value, entities={"&quot;": '"'})
 
 
@@ -302,16 +302,18 @@ def main() -> None:
 
     startJVM(classpath=["jars/*"])
 
-    JOptional = JClass("java.util.Optional")
-    JEntityTimerProcessor = JClass("org.wikidata.wdtk.dumpfiles.EntityTimerProcessor")
-    JEntityDocumentProcessorBroker = JClass(
+    JOptional = JClass("java.util.Optional")  # noqa: N806
+    JEntityTimerProcessor = JClass(  # noqa: N806
+        "org.wikidata.wdtk.dumpfiles.EntityTimerProcessor"
+    )
+    JEntityDocumentProcessorBroker = JClass(  # noqa: N806
         "org.wikidata.wdtk.datamodel.interfaces.EntityDocumentProcessorBroker"
     )
-    JWikibaseRevisionProcessor = JClass(
+    JWikibaseRevisionProcessor = JClass(  # noqa: N806
         "org.wikidata.wdtk.dumpfiles.WikibaseRevisionProcessor"
     )
-    JExampleHelpers = JClass("examples.ExampleHelpers")
-    JRevision = JClass("wikidatadumpprocessor.FullRevision")
+    JExampleHelpers = JClass("examples.ExampleHelpers")  # noqa: N806
+    JRevision = JClass("wikidatadumpprocessor.FullRevision")  # noqa: N806
 
     JExampleHelpers.configureLogging()
 

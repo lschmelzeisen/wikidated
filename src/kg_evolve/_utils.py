@@ -14,11 +14,13 @@
 # limitations under the License.
 #
 
+import hashlib
 from contextlib import contextmanager
+from io import BytesIO
 from logging import getLogger
 from pathlib import Path
 from subprocess import PIPE, Popen, TimeoutExpired
-from typing import IO, ContextManager, Iterator, Optional, Union, overload
+from typing import IO, BinaryIO, ContextManager, Iterator, Optional, Union, overload
 
 from nasty_utils import ColoredBraceStyleAdapter
 
@@ -62,3 +64,20 @@ def p7z_open(
         except TimeoutExpired as e:
             _LOGGER.exception("7z Process did not terminate, killing...", e)
             p7z.kill()
+
+
+def sha1sum(file: Union[Path, BinaryIO, BytesIO]) -> str:
+    if isinstance(file, Path):
+        fd = file.open("rb")
+    else:
+        fd = file
+
+    try:
+        h = hashlib.sha1()
+        for buffer in iter(lambda: fd.read(128 * 1024), b""):
+            h.update(buffer)
+    finally:
+        if isinstance(file, Path):
+            fd.close()
+
+    return h.hexdigest()

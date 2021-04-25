@@ -16,17 +16,6 @@
 
 from pathlib import Path
 
-from nasty_utils import LoggingSettings, Settings, SettingsConfig
 
-
-class KgEvolveInternalSettings(Settings):
-    data_dir: Path
-    wikidata_dump_version: str
-    wikidata_dump_mirror_base: str
-
-
-class KgEvolveSettings(LoggingSettings):
-    class Config(SettingsConfig):
-        search_path = Path("kg-evolve.toml")
-
-    kg_evolve: KgEvolveInternalSettings
+def get_wikidata_dump_dir(data_dir: Path) -> Path:
+    return data_dir / "dumpfiles"
