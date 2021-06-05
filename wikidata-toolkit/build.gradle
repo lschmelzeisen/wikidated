@@ -1,0 +1,20 @@
+// From: https://stackoverflow.com/a/32402694/211404
+
+repositories {
+    mavenCentral()
+}
+
+configurations {
+    downloadJars
+}
+
+dependencies {
+    downloadJars "org.wikidata.wdtk:wdtk-datamodel:0.12.1"
+    downloadJars "org.wikidata.wdtk:wdtk-dumpfiles:0.12.1"
+    downloadJars "org.wikidata.wdtk:wdtk-rdf:0.12.1"
+}
+
+task downloadJars(type: Copy) {
+    from configurations.downloadJars
+    into 'jars'
+}

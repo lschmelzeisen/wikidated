@@ -29,8 +29,8 @@ tests-report.html
 /src/*/_version.py
 tests/util/.requests_cache.jsonl
 
-# Ignore Gradle project-specific cache directory
-.gradle
+# Notebooks that are just used for experimenting
+notebooks/xx-*
 
 # Config files
 .config/
@@ -38,5 +38,8 @@ tests/util/.requests_cache.jsonl
 # Data directory
 data/
 
-# Notebooks that are just used for experimenting
-notebooks/xx-*
+# Ignore Gradle project-specific cache directory
+wikidata-toolkit/.gradle
+
+# Downloaded jars
+wikidata-toolkit/jars

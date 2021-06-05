@@ -17,6 +17,7 @@ help: ##- Show this help message.
 devinstall: ##- Install the project in editable mode with all test and dev dependencies (in a virtual environment).
 	@rm -f .venv/.devinstall
 	@make --silent .venv/.devinstall
+	@cd wikidata-toolkit && ./gradlew downloadJars
 .PHONY: devinstall
 
 devinstall-localdeps: .venv/.devinstall ##- Install dependencies developed together with this project in editable mode.
@@ -163,7 +164,7 @@ publish-upload-pypi: .venv/.devinstall ##- Upload to PyPI.
 # ------------------------------------------------------------------------------
 
 clean: ##- Remove all created cache/build files, test/coverage reports, and virtual environments.
-	@rm -rf .coverage* .eggs .mypy_cache .pytest_cache .nox .venv build dist src/*/_version.py src/*.egg-info tests-coverage tests-report.html
+	@rm -rf .coverage* .eggs .mypy_cache .pytest_cache .nox .venv build dist src/*/_version.py src/*.egg-info tests-coverage tests-report.html wikidata-toolkit/{.gradle,jars}
 	@find . -type d -name .ipynb_checkpoints -not -path "./.venv/*" -exec rm -r {} \;
 	@find . -type d -name __pycache__ -exec rm -r {} +
 .PHONY: clean
