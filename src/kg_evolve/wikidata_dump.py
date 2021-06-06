@@ -16,7 +16,9 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from datetime import date
 from itertools import chain
 from logging import getLogger
 from pathlib import Path
@@ -24,6 +26,7 @@ from typing import Iterator, Mapping, MutableMapping, Optional, TextIO, cast
 from xml.sax.saxutils import unescape
 
 from nasty_utils import ColoredBraceStyleAdapter
+from tqdm import tqdm
 
 from kg_evolve._utils import p7z_open
 
@@ -69,6 +72,16 @@ class WikidataDump:
     def __init__(self, file: Path):
         self._file = file
 
+        match = re.match(
+            r"^wikidatawiki-(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})-pages-meta-"
+            r"history\d+.xml-p(?P<min_page_id>\d+)p(?P<max_page_id>\d+).7z$",
+            self._file.name,
+        )
+        assert match
+        self._date = date(int(match["year"]), int(match["month"]), int(match["day"]))
+        self._min_page_id = match["min_page_id"]
+        self._max_page_id = match["max_page_id"]
+
     def site_info(self) -> WikidataDumpSiteInfo:
         with p7z_open(self._file, encoding="UTF-8") as fin:
             lines = iter(cast(TextIO, fin))
@@ -76,7 +89,10 @@ class WikidataDump:
             return self._process_site_info(lines)
 
     def iter_revisions(self) -> Iterator[WikidataDumpRevision]:
-        with p7z_open(self._file, encoding="UTF-8") as fin:
+        num_pages = int(self._max_page_id) - int(self._min_page_id) + 1
+        with p7z_open(self._file, encoding="UTF-8") as fin, tqdm(
+            desc=self._file.name, total=num_pages, dynamic_ncols=True
+        ) as progress_bar:
             lines = iter(cast(TextIO, fin))
             self._assert_opening_tag(next(lines), "mediawiki")
             self._assert_opening_tag(next(lines), "siteinfo")
@@ -87,6 +103,7 @@ class WikidataDump:
                 if self._is_closing_tag(line, "mediawiki"):
                     break
                 yield from self._process_page(chain((line,), lines))
+                progress_bar.update(1)
             try:
                 line = next(lines)
                 raise Exception(f"Expected EOF, instead line was: '{line}'.")
