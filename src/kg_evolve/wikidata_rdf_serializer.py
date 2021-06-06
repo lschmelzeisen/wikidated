@@ -21,6 +21,7 @@ from typing import NamedTuple, Optional, Sequence
 from jpype import JClass, JObject, shutdownJVM, startJVM  # type: ignore
 from nasty_utils import ColoredBraceStyleAdapter
 
+from kg_evolve.java_logging_bride import setup_java_logging_bridge
 from kg_evolve.settings_ import KgEvolveSettings
 from kg_evolve.wikidata_dump import WikidataDump, WikidataDumpRevision
 
@@ -148,6 +149,8 @@ class WikidataRdfSerializer:
                 *revision_log_args,
             )
             _LOGGER.info("  Document: {}", document)
+        elif model == JMwRevision.MODEL_WIKITEXT:
+            pass
         else:
             _LOGGER.info(
                 "Ignoring " + revision_log_str + " because model '{}' is unknown.",
@@ -223,6 +226,8 @@ def main() -> None:
 
     startJVM(classpath=[str(settings.kg_evolve.wikidata_toolkit_jars_dir / "*")])
 
+    setup_java_logging_bridge()
+
     rdf_serializer = WikidataRdfSerializer(
         settings.kg_evolve.data_dir / "dumpfiles" / "wikidatawiki-20210401-sites.sql.gz"
     )
@@ -234,11 +239,23 @@ def main() -> None:
     )
 
     for i, revision in enumerate(wikidata_dump.iter_revisions()):
-        print("-" * 80)  # noqa: T001
-        for triple in rdf_serializer.process_revision(revision) or ():
-            print(" ".join(triple))  # noqa: T001
-        if i == 10:
-            break
+        p = Path(
+            settings.kg_evolve.data_dir
+            / "rdf"
+            / revision.page_id
+            / (revision.revision_id + ".ttl")
+        )
+        if p.exists():
+            continue
+        p.parent.mkdir(parents=True, exist_ok=True)
+
+        with p.open("w", encoding="UTF-8") as fout:
+            for triple in rdf_serializer.process_revision(revision) or ():
+                fout.write(" ".join(triple) + " .\n")  # noqa: T001
+        if i % 100 == 0:
+            print(i)
+        # if i == 1000:
+        #     break
 
     shutdownJVM()
 
