@@ -9,6 +9,7 @@ configurations {
 }
 
 dependencies {
+    downloadJars "org.slf4j:slf4j-simple:1.7.30"
     downloadJars "org.wikidata.wdtk:wdtk-datamodel:0.12.1"
     downloadJars "org.wikidata.wdtk:wdtk-dumpfiles:0.12.1"
     downloadJars "org.wikidata.wdtk:wdtk-rdf:0.12.1"

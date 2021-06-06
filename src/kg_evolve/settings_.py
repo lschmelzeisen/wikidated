@@ -21,6 +21,7 @@ from nasty_utils import LoggingSettings, Settings, SettingsConfig
 
 class KgEvolveInternalSettings(Settings):
     data_dir: Path
+    wikidata_toolkit_jars_dir: Path
     wikidata_dump_version: str
     wikidata_dump_mirror_base: str
 

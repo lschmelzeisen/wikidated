@@ -20,20 +20,37 @@ from dataclasses import dataclass
 from itertools import chain
 from logging import getLogger
 from pathlib import Path
-from typing import Iterator, Mapping, MutableMapping, Optional, TextIO, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Iterator,
+    Mapping,
+    MutableMapping,
+    Optional,
+    TextIO,
+    TypeVar,
+    cast,
+)
 from xml.sax.saxutils import unescape
 
-from jpype import JClass, JLong, shutdownJVM, startJVM  # type: ignore
+if TYPE_CHECKING:
+    F = TypeVar("F", bound=Callable[..., Any])
+
+    def JOverride(_f: F) -> F:  # noqa: N802
+        ...
+
+
+from jpype import JImplements, JOverride  # type: ignore # noqa: F811
 from nasty_utils import ColoredBraceStyleAdapter
 
 from kg_evolve._utils import p7z_open
-from kg_evolve.settings_ import KgEvolveSettings
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
 
 @dataclass
-class WikidataSiteInfo:
+class WikidataDumpSiteInfo:
     site_name: str
     db_name: str
     base: str
@@ -42,8 +59,9 @@ class WikidataSiteInfo:
     namespaces: Mapping[int, str]
 
 
+@JImplements("org.wikidata.wdtk.dumpfiles.MwRevision", deferred=True)
 @dataclass
-class WikidataRevision:
+class WikidataDumpRevision:
     prefixed_title: str
     namespace: int
     page_id: str
@@ -60,6 +78,66 @@ class WikidataRevision:
     text: Optional[str]
     sha1: Optional[str]
 
+    @JOverride
+    def getPrefixedTitle(self) -> str:  # noqa: N802
+        return self.prefixed_title
+
+    @JOverride
+    def getTitle(self) -> str:  # noqa: N802
+        return (
+            self.prefixed_title
+            if self.namespace == 0
+            else self.prefixed_title[self.prefixed_title.index(":") + 1]
+        )
+
+    @JOverride
+    def getNamespace(self) -> int:  # noqa: N802
+        return self.namespace
+
+    @JOverride
+    def getPageId(self) -> int:  # noqa: N802
+        return int(self.page_id)
+
+    @JOverride
+    def getRevisionId(self) -> int:  # noqa: N802
+        return int(self.revision_id)
+
+    @JOverride
+    def getParentRevisionId(self) -> int:  # noqa: N802
+        return int(self.parent_revision_id or -1)
+
+    @JOverride
+    def getTimeStamp(self) -> str:  # noqa: N802
+        return self.timestamp
+
+    @JOverride
+    def getText(self) -> str:  # noqa: N802
+        return self.text or ""
+
+    @JOverride
+    def getModel(self) -> str:  # noqa: N802
+        return self.model
+
+    @JOverride
+    def getFormat(self) -> str:  # noqa: N802
+        return self.format
+
+    @JOverride
+    def getComment(self) -> Optional[str]:  # noqa: N802
+        return self.comment
+
+    @JOverride
+    def getContributor(self) -> Optional[str]:  # noqa: N802
+        return self.contributor
+
+    @JOverride
+    def getContributorId(self) -> int:  # noqa: N802
+        return int(self.contributor_id or -1)
+
+    @JOverride
+    def hasRegisteredContributor(self) -> bool:  # noqa: N802
+        return self.contributor_id is not None
+
 
 class WikidataDump:
     # Does not use an actual XML library for parsing the dumps content as we can make
@@ -71,13 +149,13 @@ class WikidataDump:
     def __init__(self, file: Path):
         self._file = file
 
-    def site_info(self) -> WikidataSiteInfo:
+    def site_info(self) -> WikidataDumpSiteInfo:
         with p7z_open(self._file, encoding="UTF-8") as fin:
             lines = iter(cast(TextIO, fin))
             self._assert_opening_tag(next(lines), "mediawiki")
             return self._process_site_info(lines)
 
-    def iter_revisions(self) -> Iterator[WikidataRevision]:
+    def iter_revisions(self) -> Iterator[WikidataDumpRevision]:
         with p7z_open(self._file, encoding="UTF-8") as fin:
             lines = iter(cast(TextIO, fin))
             self._assert_opening_tag(next(lines), "mediawiki")
@@ -143,7 +221,7 @@ class WikidataDump:
         return "".join(value)
 
     @classmethod
-    def _process_site_info(cls, lines: Iterator[str]) -> WikidataSiteInfo:
+    def _process_site_info(cls, lines: Iterator[str]) -> WikidataDumpSiteInfo:
         cls._assert_opening_tag(next(lines), "siteinfo")
         site_name = cls._extract_value(next(lines), "sitename")
         db_name = cls._extract_value(next(lines), "dbname")
@@ -165,7 +243,7 @@ class WikidataDump:
                 namespaces[namespace_key] = cls._extract_value(line, "namespace")
         cls._assert_closing_tag(next(lines), "siteinfo")
 
-        return WikidataSiteInfo(
+        return WikidataDumpSiteInfo(
             site_name=site_name,
             db_name=db_name,
             base=base,
@@ -175,7 +253,7 @@ class WikidataDump:
         )
 
     @classmethod
-    def _process_page(cls, lines: Iterator[str]) -> Iterator[WikidataRevision]:
+    def _process_page(cls, lines: Iterator[str]) -> Iterator[WikidataDumpRevision]:
         cls._assert_opening_tag(next(lines), "page")
         prefixed_title = cls._unescape_xml(cls._extract_value(next(lines), "title"))
         namespace = int(cls._extract_value(next(lines), "ns"))
@@ -209,7 +287,7 @@ class WikidataDump:
         namespace: int,
         page_id: str,
         redirect: Optional[str],
-    ) -> WikidataRevision:
+    ) -> WikidataDumpRevision:
         cls._assert_opening_tag(next(lines), "revision")
         revision_id = cls._extract_value(next(lines), "id")
 
@@ -262,12 +340,12 @@ class WikidataDump:
         sha1 = None
         line = next(lines)
         cls._assert_opening_tag(line, "sha1")
-        if not line.rstrip().endswith("sha1"):
+        if not line.rstrip().endswith("/>"):
             sha1 = cls._extract_value(line, "sha1")
 
         cls._assert_closing_tag(next(lines), "revision")
 
-        return WikidataRevision(
+        return WikidataDumpRevision(
             prefixed_title=prefixed_title,
             namespace=namespace,
             page_id=page_id,
@@ -288,84 +366,3 @@ class WikidataDump:
     @classmethod
     def _unescape_xml(cls, value: str) -> str:
         return unescape(value, entities={"&quot;": '"'})
-
-
-def main() -> None:
-    settings = KgEvolveSettings.find_and_load_from_settings_file()
-    settings.setup_logging()
-
-    wikidata_dump = WikidataDump(
-        settings.kg_evolve.data_dir
-        / "dumpfiles"
-        / "wikidatawiki-20210401-pages-meta-history25.xml-p67174382p67502430.7z"
-    )
-
-    startJVM(classpath=["jars/*"])
-
-    JOptional = JClass("java.util.Optional")  # noqa: N806
-    JEntityTimerProcessor = JClass(  # noqa: N806
-        "org.wikidata.wdtk.dumpfiles.EntityTimerProcessor"
-    )
-    JEntityDocumentProcessorBroker = JClass(  # noqa: N806
-        "org.wikidata.wdtk.datamodel.interfaces.EntityDocumentProcessorBroker"
-    )
-    JWikibaseRevisionProcessor = JClass(  # noqa: N806
-        "org.wikidata.wdtk.dumpfiles.WikibaseRevisionProcessor"
-    )
-    JExampleHelpers = JClass("examples.ExampleHelpers")  # noqa: N806
-    JRevision = JClass("wikidatadumpprocessor.FullRevision")  # noqa: N806
-
-    JExampleHelpers.configureLogging()
-
-    entity_timer_processor = JEntityTimerProcessor(0)
-    entity_document_processor = JEntityDocumentProcessorBroker()
-    entity_document_processor.registerEntityDocumentProcessor(entity_timer_processor)
-    wikibase_revision_processor = JWikibaseRevisionProcessor(
-        entity_document_processor, "http://www.wikidata.org/"
-    )
-
-    entity_timer_processor.open()
-    site_info = wikidata_dump.site_info()
-    wikibase_revision_processor.startRevisionProcessing(
-        site_info.site_name,
-        site_info.base,
-        site_info.namespaces,
-    )
-
-    for revision in wikidata_dump.iter_revisions():
-        wikibase_revision_processor.processRevision(
-            JRevision(
-                revision.prefixed_title,
-                revision.namespace,
-                int(revision.page_id),
-                JOptional.ofNullable(revision.redirect),
-                int(revision.revision_id),
-                (
-                    JOptional.of(JLong(int(revision.parent_revision_id)))
-                    if revision.parent_revision_id
-                    else JOptional.empty()
-                ),
-                revision.timestamp,
-                JOptional.ofNullable(revision.contributor),
-                (
-                    JOptional.of(JLong(int(revision.contributor_id)))
-                    if revision.contributor_id
-                    else JOptional.empty()
-                ),
-                revision.is_minor,
-                JOptional.ofNullable(revision.comment),
-                revision.model,
-                revision.format,
-                revision.text or "",
-                JOptional.ofNullable(revision.sha1),
-            )
-        )
-
-    wikibase_revision_processor.finishRevisionProcessing()
-    entity_timer_processor.close()
-
-    shutdownJVM()
-
-
-if __name__ == "__main__":
-    main()
