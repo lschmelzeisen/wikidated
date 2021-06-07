@@ -14,11 +14,12 @@
 # limitations under the License.
 #
 
+from collections import Counter
 from logging import getLogger
 from pathlib import Path
 from typing import NamedTuple, Optional, Sequence
 
-from jpype import JClass, JObject, shutdownJVM, startJVM  # type: ignore
+from jpype import JClass, JException, JObject, shutdownJVM, startJVM  # type: ignore
 from nasty_utils import ColoredBraceStyleAdapter
 
 from kg_evolve.java_logging_bride import setup_java_logging_bridge
@@ -34,14 +35,39 @@ class RdfTriple(NamedTuple):
     tail: str
 
 
+class WikidataRdfSerializationException(Exception):
+    def __init__(
+        self,
+        reason: str,
+        revision: WikidataDumpRevision,
+        exception: Optional[Exception] = None,
+    ) -> None:
+        self.reason = reason
+        self.revision = revision
+        self.exception = exception
+
+    def __str__(self):
+        return (
+            f"{self.reason} ({self.revision.prefixed_title}, "
+            f"page: {self.revision.page_id}, revision: {self.revision.revision_id})"
+        )
+
+
 class WikidataRdfSerializer:
-    # Prefixes from https://www.wikidata.org/wiki/EntitySchema:E49 but sorted after
-    # URLs so that the longer URLs come first to enable one-pass prefix replacing.
+    # TODO: document that this is basically a mix of RdfSerializer, RdfWriter,
+    #  RdfConverter and AbstractRdfConverter.
+    # TODO: document that RdfConverter basically only adds the "TASK filtering" on top
+    #  of AbstractRdfConverter.
+
+    # Prefixes taken from
+    # https://www.mediawiki.org/w/index.php?title=Wikibase/Indexing/RDF_Dump_Format&oldid=4471307#Full_list_of_prefixes
+    # but sorted so that the longer URLs come first to enable one-pass prefixing.
     PREFIXES = {
         "cc": "http://creativecommons.org/ns#",
         "dct": "http://purl.org/dc/terms/",
         "schema": "http://schema.org/",
         "wikibase": "http://wikiba.se/ontology#",
+        "hint": "http://www.bigdata.com/queryHints#",
         "bd": "http://www.bigdata.com/rdf#",
         "geo": "http://www.opengis.net/ont/geosparql#",
         "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
@@ -76,98 +102,145 @@ class WikidataRdfSerializer:
         self._property_register = self._get_property_register()
         self._json_deserializer = self._get_json_deserializer()
 
-    def process_revision(
-        self, revision: WikidataDumpRevision
-    ) -> Optional[Sequence[RdfTriple]]:
         JMwRevision = JClass("org.wikidata.wdtk.dumpfiles.MwRevision")  # noqa: N806
-        JRdfConverter = JClass("org.wikidata.wdtk.rdf.RdfConverter")  # noqa: N806
-        JRdfSerializer = JClass("org.wikidata.wdtk.rdf.RdfSerializer")  # noqa: N806
-        JRdfWriter = JClass("org.wikidata.wdtk.rdf.RdfWriter")  # noqa: N806
-        JRDFFormat = JClass("org.eclipse.rdf4j.rio.RDFFormat")  # noqa: N806
+        self._model_item = str(JMwRevision.MODEL_WIKIBASE_ITEM)
+        self._model_property = str(JMwRevision.MODEL_WIKIBASE_PROPERTY)
 
-        revision_log_str = "page {} revision {} ({})"
-        revision_log_args = (
-            revision.page_id,
-            revision.revision_id,
-            revision.prefixed_title,
+        self._format_ntriples = JClass("org.eclipse.rdf4j.rio.RDFFormat").NTRIPLES
+
+        # Keep references to Java classes here, so they do not have to be looked up
+        # when processing each revision individually.
+        self._JRdfConverter = JClass("org.wikidata.wdtk.rdf.RdfConverter")  # noqa: N806
+        self._JRdfSerializer = JClass(  # noqa: N806
+            "org.wikidata.wdtk.rdf.RdfSerializer"
+        )
+        self._JRdfWriter = JClass("org.wikidata.wdtk.rdf.RdfWriter")  # noqa: N806
+        self._JByteArrayOutputStream = JClass(  # noqa: N806
+            "java.io.ByteArrayOutputStream"
         )
 
+        self._tasks = (
+            0x0
+            # Document terms
+            # TODO: document labels, descriptions, aliases
+            | self._JRdfSerializer.TASK_LABELS
+            | self._JRdfSerializer.TASK_DESCRIPTIONS
+            | self._JRdfSerializer.TASK_ALIASES
+            #
+            # Statements
+            # TODO: document that this means "full" statements (i.e. with reification).
+            | self._JRdfSerializer.TASK_STATEMENTS
+            # TODO: document that TASK_SIMPLE_STATEMENTS writes a "simple" statement
+            #  (i.e. not more complex stuff that would need reification to express and
+            #  that additionally it will only print statements of the "best" rank of
+            #  that particular statement group. (Not 100% sure what that means, but it
+            #  is atleast specific to that respective entity.)
+            | self._JRdfSerializer.TASK_SIMPLE_STATEMENTS
+            #
+            # Items
+            # TODO: Document item selector
+            | self._JRdfSerializer.TASK_ITEMS
+            # TODO: document that TASK_SITELINKS refers to links to Wikipedia articles.
+            | self._JRdfSerializer.TASK_SITELINKS
+            #
+            # Properties
+            # TODO: Document property selector
+            | self._JRdfSerializer.TASK_PROPERTIES
+            # TODO: not sure what this is (but it is only applicable to properties)
+            | self._JRdfSerializer.TASK_DATATYPES
+            # TODO: not sure what this is (but it is only applicable to properties)
+            | self._JRdfSerializer.TASK_PROPERTY_LINKS
+        )
+
+    @classmethod
+    def _get_sites(cls, file: Path) -> JObject:
+        dump = JClass("org.wikidata.wdtk.dumpfiles.MwLocalDumpFile")(str(file))
+        processor = JClass("org.wikidata.wdtk.dumpfiles.MwSitesDumpFileProcessor")()
+        processor.processDumpFileContents(dump.getDumpFileStream(), dump)
+        return processor.getSites()
+
+    @classmethod
+    def _get_property_register(cls) -> JObject:
+        return JClass(
+            "org.wikidata.wdtk.rdf.PropertyRegister"
+        ).getWikidataPropertyRegister()
+
+    @classmethod
+    def _get_json_deserializer(cls) -> JObject:
+        return JClass("org.wikidata.wdtk.datamodel.helpers.JsonDeserializer")(
+            JClass("org.wikidata.wdtk.datamodel.helpers.Datamodel").SITE_WIKIDATA
+        )
+
+    def process_revision(self, revision: WikidataDumpRevision) -> Sequence[RdfTriple]:
         if revision.text is None:
-            _LOGGER.warning(
-                "Substituting no text for " + revision_log_str + ".", *revision_log_args
-            )
-            revision.text = ""
+            raise WikidataRdfSerializationException("Entity has no text.", revision)
 
-        is_redirect = revision.redirect is not None
-        is_wikibase_redirection = '"redirect":' in revision.text
-        if is_redirect != is_wikibase_redirection:
-            _LOGGER.warning(
-                "Diverging redirection detection for " + revision_log_str + ".",
-                *revision_log_args,
-            )
-            _LOGGER.warning("  revision.redirect: {}", revision.redirect)
-            _LOGGER.warning("  revision.text: {}", revision.text)
+        output_stream = self._JByteArrayOutputStream()
 
-        output_stream = self._get_byte_array_output_stream()
-        rdf_writer = JRdfWriter(JRDFFormat.NTRIPLES, output_stream)
-        rdf_converter = JRdfConverter(rdf_writer, self._sites, self._property_register)
-
-        rdf_converter.setTasks(
-            JRdfSerializer.TASK_TERMS
-            | JRdfSerializer.TASK_STATEMENTS
-            | JRdfSerializer.TASK_SITELINKS
-            | JRdfSerializer.TASK_DATATYPES
-            | JRdfSerializer.TASK_PROPERTY_LINKS
-            | JRdfSerializer.TASK_SIMPLE_STATEMENTS
-            | JRdfSerializer.TASK_ITEMS
-            | JRdfSerializer.TASK_PROPERTIES
-        )
+        rdf_writer = self._JRdfWriter(self._format_ntriples, output_stream)
         rdf_writer.start()
 
+        rdf_converter = self._JRdfConverter(
+            rdf_writer, self._sites, self._property_register
+        )
+        rdf_converter.setTasks(self._tasks)
+
         model = revision.model
-        if is_redirect or is_wikibase_redirection:
-            document = self._json_deserializer.deserializeEntityRedirectDocument(
-                revision.text
-            )
-            _LOGGER.info(
-                "Ignoring " + revision_log_str + " because it is a redirection.",
-                *revision_log_args,
-            )
-            _LOGGER.info("  Document: {}", document)
-        elif model == JMwRevision.MODEL_WIKIBASE_ITEM:
-            document = self._json_deserializer.deserializeItemDocument(revision.text)
-            rdf_converter.writeItemDocument(document)
-        elif model == JMwRevision.MODEL_WIKIBASE_PROPERTY:
-            document = self._json_deserializer.deserializePropertyDocument(
-                revision.text
-            )
-            rdf_converter.writePropertyDocument(document)
-        elif model == JMwRevision.MODEL_WIKIBASE_LEXEME:
-            document = self._json_deserializer.deserializeLexemeDocument(revision.text)
-            _LOGGER.info(
-                "Ignoring " + revision_log_str + " because it is a lexeme.",
-                *revision_log_args,
-            )
-            _LOGGER.info("  Document: {}", document)
-        elif model == JMwRevision.MODEL_WIKITEXT:
-            pass
+        if '"redirect":' in revision.text:
+            # TODO: document that revisions that contain the "redirect" field in their
+            #  JSON indicate that the respective entity is being redirected to the
+            #  target entity starting from that point in time. Additionally, if an
+            #  entity is ever the source of a redirect all revisions of it will also
+            #  carry the revision.redirect attribute indicating the target of the
+            #  redirect, even if at that time the entity is not yet being redirect.
+            raise WikidataRdfSerializationException("Entity is redirected.", revision)
+
+        elif model == self._model_item:
+            try:
+                document = self._json_deserializer.deserializeItemDocument(
+                    revision.text
+                )
+            except JException as exception:
+                raise WikidataRdfSerializationException(
+                    "Item could not be JSON-deserialized.", revision, exception
+                )
+            try:
+                rdf_converter.writeItemDocument(document)
+            except JException as exception:
+                raise WikidataRdfSerializationException(
+                    "Item could not be RDF-serialized.", revision, exception
+                )
+
+        elif model == self._model_property:
+            try:
+                document = self._json_deserializer.deserializePropertyDocument(
+                    revision.text
+                )
+            except JException as exception:
+                raise WikidataRdfSerializationException(
+                    "Property could not be JSON-deserialized.", revision, exception
+                )
+            try:
+                rdf_converter.writePropertyDocument(document)
+            except JException as exception:
+                raise WikidataRdfSerializationException(
+                    "Property could not be RDF-serialized.", revision, exception
+                )
+
         else:
-            _LOGGER.info(
-                "Ignoring " + revision_log_str + " because model '{}' is unknown.",
-                *revision_log_args,
-                model,
+            # Lexemes, Wikitext pages (i.e., discussion pages), and others.
+            raise WikidataRdfSerializationException(
+                f"Entity model '{revision.model}' is not RDF-serializable.", revision
             )
 
         rdf_writer.finish()
 
-        triples = []
-        for triple_str in str(output_stream).splitlines():
-            assert triple_str.endswith(" .")
-            triple_str = triple_str[:-2]
-            triples.append(
-                RdfTriple(*map(self._prefix_ntriples_uri, triple_str.split(" ", 2)))
+        return [
+            RdfTriple(
+                *map(self._prefix_ntriples_uri, triple_str[: -len(" .")].split(" ", 2))
             )
-        return triples
+            for triple_str in str(output_stream).splitlines()
+        ]
 
     @classmethod
     def _prefix_ntriples_uri(cls, uri: str) -> str:
@@ -179,45 +252,6 @@ class WikidataRdfSerializer:
             if uri.startswith(prefix_url):
                 return prefix + ":" + uri[len(prefix_url) :]
         return "<" + uri + ">"
-
-    @classmethod
-    def _get_sites(cls, file: Path) -> JObject:
-        JMwLocalDumpFile = JClass(  # noqa: N806
-            "org.wikidata.wdtk.dumpfiles.MwLocalDumpFile"
-        )
-        JMwSitesDumpFileProcessor = JClass(  # noqa: N806
-            "org.wikidata.wdtk.dumpfiles.MwSitesDumpFileProcessor"
-        )
-
-        sites_table_dump = JMwLocalDumpFile(str(file))
-        sites_dump_file_processor = JMwSitesDumpFileProcessor()
-        sites_dump_file_processor.processDumpFileContents(
-            sites_table_dump.getDumpFileStream(), sites_table_dump
-        )
-        return sites_dump_file_processor.getSites()
-
-    @classmethod
-    def _get_property_register(cls) -> JObject:
-        JPropertyRegister = JClass(  # noqa: N806
-            "org.wikidata.wdtk.rdf.PropertyRegister"
-        )
-
-        return JPropertyRegister.getWikidataPropertyRegister()
-
-    @classmethod
-    def _get_json_deserializer(cls) -> JObject:
-        JDataModel = JClass(  # noqa: N806
-            "org.wikidata.wdtk.datamodel.helpers.Datamodel"
-        )
-        JJsonDeserializer = JClass(  # noqa: N806
-            "org.wikidata.wdtk.datamodel.helpers.JsonDeserializer"
-        )
-        return JJsonDeserializer(JDataModel.SITE_WIKIDATA)
-
-    @classmethod
-    def _get_byte_array_output_stream(cls) -> JObject:
-        JByteArrayOutputStream = JClass("java.io.ByteArrayOutputStream")  # noqa: N806
-        return JByteArrayOutputStream()
 
 
 def main() -> None:
@@ -235,27 +269,47 @@ def main() -> None:
     wikidata_dump = WikidataDump(
         settings.kg_evolve.data_dir
         / "dumpfiles"
-        / "wikidatawiki-20210401-pages-meta-history1.xml-p14305p18638.7z"
+        / "wikidatawiki-20210401-pages-meta-history1.xml-p1p192.7z"
+        # / "wikidatawiki-20210401-pages-meta-history1.xml-p14305p18638.7z"
+        # / "wikidatawiki-20210401-pages-meta-history1.xml-p267210p283697.7z"
+        # / "wikidatawiki-20210401-pages-meta-history25.xml-p67174382p67502430.7z"
     )
+
+    exception_reason_counter = Counter()
 
     for i, revision in enumerate(wikidata_dump.iter_revisions()):
         p = Path(
             settings.kg_evolve.data_dir
             / "rdf"
-            / revision.page_id
+            / wikidata_dump._file.name
+            / revision.prefixed_title
             / (revision.revision_id + ".ttl")
         )
         if p.exists():
             continue
-        p.parent.mkdir(parents=True, exist_ok=True)
 
+        try:
+            triples = rdf_serializer.process_revision(revision) or ()
+        except WikidataRdfSerializationException as exception:
+            exception_reason_counter[exception.reason] += 1
+            continue
+
+        p.parent.mkdir(parents=True, exist_ok=True)
         with p.open("w", encoding="UTF-8") as fout:
-            for triple in rdf_serializer.process_revision(revision) or ():
+            for triple in triples:
                 fout.write(" ".join(triple) + " .\n")  # noqa: T001
-        if i % 100 == 0:
-            print(i)
-        # if i == 1000:
-        #     break
+
+        if i == 10000:
+            break
+
+    with Path(
+        settings.kg_evolve.data_dir
+        / "rdf"
+        / wikidata_dump._file.name
+        / "exceptions.log"
+    ).open("w", encoding="UTF-8") as fout:
+        for k, v in exception_reason_counter.most_common():
+            fout.write(f"{k}: {v}\n")
 
     shutdownJVM()
 
