@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from itertools import chain
 from logging import getLogger
 from pathlib import Path
@@ -51,7 +51,7 @@ class WikidataDumpRevision:
     redirect: Optional[str]
     revision_id: str
     parent_revision_id: Optional[str]
-    timestamp: str
+    timestamp: datetime
     contributor: Optional[str]
     contributor_id: Optional[str]
     is_minor: bool
@@ -60,6 +60,14 @@ class WikidataDumpRevision:
     format: str
     text: Optional[str]
     sha1: Optional[str]
+
+
+class WikidataDumpInvalidFileException(Exception):
+    def __init__(self, file: Path):
+        super().__init__(
+            f"File '{file.name}' is not a Wikidata pages-meta-history dump file (based "
+            f"on file name). Full path: '{file}'."
+        )
 
 
 class WikidataDump:
@@ -77,7 +85,8 @@ class WikidataDump:
             r"history\d+.xml-p(?P<min_page_id>\d+)p(?P<max_page_id>\d+).7z$",
             self._file.name,
         )
-        assert match
+        if not match:
+            raise WikidataDumpInvalidFileException(self._file)
         self._date = date(int(match["year"]), int(match["month"]), int(match["day"]))
         self._min_page_id = match["min_page_id"]
         self._max_page_id = match["max_page_id"]
@@ -235,7 +244,9 @@ class WikidataDump:
         else:
             lines = chain((line,), lines)
 
-        timestamp = cls._extract_value(next(lines), "timestamp")
+        timestamp = datetime.strptime(
+            cls._extract_value(next(lines), "timestamp"), "%Y-%m-%dT%H:%M:%S%z"
+        )
 
         contributor: Optional[str] = None
         contributor_id: Optional[str] = None

@@ -16,22 +16,20 @@
 
 from logging import getLogger
 from pathlib import Path
-from typing import Counter, NamedTuple, Optional, Sequence
+from typing import NamedTuple, Optional, Sequence
 
-from jpype import JClass, JException, JObject, shutdownJVM, startJVM  # type: ignore
+from jpype import JClass, JException, JObject  # type: ignore
 from nasty_utils import ColoredBraceStyleAdapter
 
-from kg_evolve.java_logging_bride import setup_java_logging_bridge
-from kg_evolve.settings_ import KgEvolveSettings
-from kg_evolve.wikidata_dump import WikidataDump, WikidataDumpRevision
+from kg_evolve.wikidata_dump import WikidataDumpRevision
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
 
 class RdfTriple(NamedTuple):
-    head: str
-    relation: str
-    tail: str
+    subject: str
+    predicate: str
+    object: str
 
 
 class WikidataRdfSerializationException(Exception):
@@ -112,9 +110,9 @@ class WikidataRdfSerializer:
             0x0
             # Document terms
             # TODO: document labels, descriptions, aliases
-            | JRdfSerializer.TASK_LABELS
-            | JRdfSerializer.TASK_DESCRIPTIONS
-            | JRdfSerializer.TASK_ALIASES
+            # | JRdfSerializer.TASK_LABELS
+            # | JRdfSerializer.TASK_DESCRIPTIONS
+            # | JRdfSerializer.TASK_ALIASES
             #
             # Statements
             # TODO: document that TASK_SIMPLE_STATEMENTS writes a "simple" statement
@@ -124,21 +122,21 @@ class WikidataRdfSerializer:
             #  is atleast specific to that respective entity.)
             | JRdfSerializer.TASK_SIMPLE_STATEMENTS
             # TODO: document that this means "full" statements (i.e. with reification).
-            | JRdfSerializer.TASK_STATEMENTS
+            # | JRdfSerializer.TASK_STATEMENTS
             #
             # Items
             # TODO: Document item selector
             | JRdfSerializer.TASK_ITEMS
             # TODO: document that TASK_SITELINKS refers to links to Wikipedia articles.
-            | JRdfSerializer.TASK_SITELINKS
+            # | JRdfSerializer.TASK_SITELINKS
             #
             # Properties
             # TODO: Document property selector
-            | JRdfSerializer.TASK_PROPERTIES
+            # | JRdfSerializer.TASK_PROPERTIES
             # TODO: not sure what this is (but it is only applicable to properties)
-            | JRdfSerializer.TASK_DATATYPES
+            # | JRdfSerializer.TASK_DATATYPES
             # TODO: not sure what this is (but it is only applicable to properties)
-            | JRdfSerializer.TASK_PROPERTY_LINKS
+            # | JRdfSerializer.TASK_PROPERTY_LINKS
         )
 
         # Keep references to Java classes here, so they do not have to be looked up
@@ -234,64 +232,3 @@ class WikidataRdfSerializer:
             if uri.startswith(prefix_url):
                 return prefix + ":" + uri[len(prefix_url) :]
         return "<" + uri + ">"
-
-
-def main() -> None:
-    settings = KgEvolveSettings.find_and_load_from_settings_file()
-    settings.setup_logging()
-
-    startJVM(classpath=[str(settings.kg_evolve.wikidata_toolkit_jars_dir / "*")])
-
-    setup_java_logging_bridge()
-
-    rdf_serializer = WikidataRdfSerializer(
-        settings.kg_evolve.data_dir / "dumpfiles" / "wikidatawiki-20210401-sites.sql.gz"
-    )
-
-    wikidata_dump = WikidataDump(
-        settings.kg_evolve.data_dir
-        / "dumpfiles"
-        / "wikidatawiki-20210401-pages-meta-history1.xml-p1p192.7z"
-        # / "wikidatawiki-20210401-pages-meta-history1.xml-p14305p18638.7z"
-        # / "wikidatawiki-20210401-pages-meta-history1.xml-p267210p283697.7z"
-        # / "wikidatawiki-20210401-pages-meta-history25.xml-p67174382p67502430.7z"
-    )
-
-    exception_reason_counter = Counter[str]()
-
-    for revision in wikidata_dump.iter_revisions():
-        p = Path(
-            settings.kg_evolve.data_dir
-            / "rdf"
-            / wikidata_dump._file.name
-            / revision.prefixed_title
-            / (revision.revision_id + ".ttl")
-        )
-        if p.exists():
-            continue
-
-        try:
-            triples = rdf_serializer.process_revision(revision) or ()
-        except WikidataRdfSerializationException as exception:
-            exception_reason_counter[exception.reason] += 1
-            continue
-
-        p.parent.mkdir(parents=True, exist_ok=True)
-        with p.open("w", encoding="UTF-8") as fout:
-            for triple in triples:
-                fout.write(" ".join(triple) + " .\n")  # noqa: T001
-
-    with Path(
-        settings.kg_evolve.data_dir
-        / "rdf"
-        / wikidata_dump._file.name
-        / "exceptions.log"
-    ).open("w", encoding="UTF-8") as fout:
-        for k, v in exception_reason_counter.most_common():
-            fout.write(f"{k}: {v}\n")
-
-    shutdownJVM()
-
-
-if __name__ == "__main__":
-    main()
