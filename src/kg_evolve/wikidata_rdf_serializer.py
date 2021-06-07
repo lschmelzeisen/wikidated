@@ -14,10 +14,9 @@
 # limitations under the License.
 #
 
-from collections import Counter
 from logging import getLogger
 from pathlib import Path
-from typing import NamedTuple, Optional, Sequence
+from typing import Counter, NamedTuple, Optional, Sequence
 
 from jpype import JClass, JException, JObject, shutdownJVM, startJVM  # type: ignore
 from nasty_utils import ColoredBraceStyleAdapter
@@ -46,7 +45,7 @@ class WikidataRdfSerializationException(Exception):
         self.revision = revision
         self.exception = exception
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"{self.reason} ({self.revision.prefixed_title}, "
             f"page: {self.revision.page_id}, revision: {self.revision.revision_id})"
@@ -108,48 +107,46 @@ class WikidataRdfSerializer:
 
         self._format_ntriples = JClass("org.eclipse.rdf4j.rio.RDFFormat").NTRIPLES
 
-        # Keep references to Java classes here, so they do not have to be looked up
-        # when processing each revision individually.
-        self._JRdfConverter = JClass("org.wikidata.wdtk.rdf.RdfConverter")  # noqa: N806
-        self._JRdfSerializer = JClass(  # noqa: N806
-            "org.wikidata.wdtk.rdf.RdfSerializer"
-        )
-        self._JRdfWriter = JClass("org.wikidata.wdtk.rdf.RdfWriter")  # noqa: N806
-        self._JByteArrayOutputStream = JClass(  # noqa: N806
-            "java.io.ByteArrayOutputStream"
-        )
-
+        JRdfSerializer = JClass("org.wikidata.wdtk.rdf.RdfSerializer")  # noqa: N806
         self._tasks = (
             0x0
             # Document terms
             # TODO: document labels, descriptions, aliases
-            | self._JRdfSerializer.TASK_LABELS
-            | self._JRdfSerializer.TASK_DESCRIPTIONS
-            | self._JRdfSerializer.TASK_ALIASES
+            | JRdfSerializer.TASK_LABELS
+            | JRdfSerializer.TASK_DESCRIPTIONS
+            | JRdfSerializer.TASK_ALIASES
             #
             # Statements
-            # TODO: document that this means "full" statements (i.e. with reification).
-            | self._JRdfSerializer.TASK_STATEMENTS
             # TODO: document that TASK_SIMPLE_STATEMENTS writes a "simple" statement
             #  (i.e. not more complex stuff that would need reification to express and
             #  that additionally it will only print statements of the "best" rank of
             #  that particular statement group. (Not 100% sure what that means, but it
             #  is atleast specific to that respective entity.)
-            | self._JRdfSerializer.TASK_SIMPLE_STATEMENTS
+            | JRdfSerializer.TASK_SIMPLE_STATEMENTS
+            # TODO: document that this means "full" statements (i.e. with reification).
+            | JRdfSerializer.TASK_STATEMENTS
             #
             # Items
             # TODO: Document item selector
-            | self._JRdfSerializer.TASK_ITEMS
+            | JRdfSerializer.TASK_ITEMS
             # TODO: document that TASK_SITELINKS refers to links to Wikipedia articles.
-            | self._JRdfSerializer.TASK_SITELINKS
+            | JRdfSerializer.TASK_SITELINKS
             #
             # Properties
             # TODO: Document property selector
-            | self._JRdfSerializer.TASK_PROPERTIES
+            | JRdfSerializer.TASK_PROPERTIES
             # TODO: not sure what this is (but it is only applicable to properties)
-            | self._JRdfSerializer.TASK_DATATYPES
+            | JRdfSerializer.TASK_DATATYPES
             # TODO: not sure what this is (but it is only applicable to properties)
-            | self._JRdfSerializer.TASK_PROPERTY_LINKS
+            | JRdfSerializer.TASK_PROPERTY_LINKS
+        )
+
+        # Keep references to Java classes here, so they do not have to be looked up
+        # when processing each revision individually.
+        self._JRdfConverter = JClass("org.wikidata.wdtk.rdf.RdfConverter")  # noqa: N806
+        self._JRdfWriter = JClass("org.wikidata.wdtk.rdf.RdfWriter")  # noqa: N806
+        self._JByteArrayOutputStream = JClass(  # noqa: N806
+            "java.io.ByteArrayOutputStream"
         )
 
     @classmethod
@@ -185,7 +182,6 @@ class WikidataRdfSerializer:
         )
         rdf_converter.setTasks(self._tasks)
 
-        model = revision.model
         if '"redirect":' in revision.text:
             # TODO: document that revisions that contain the "redirect" field in their
             #  JSON indicate that the respective entity is being redirected to the
@@ -195,51 +191,37 @@ class WikidataRdfSerializer:
             #  redirect, even if at that time the entity is not yet being redirect.
             raise WikidataRdfSerializationException("Entity is redirected.", revision)
 
-        elif model == self._model_item:
-            try:
-                document = self._json_deserializer.deserializeItemDocument(
-                    revision.text
-                )
-            except JException as exception:
-                raise WikidataRdfSerializationException(
-                    "Item could not be JSON-deserialized.", revision, exception
-                )
-            try:
-                rdf_converter.writeItemDocument(document)
-            except JException as exception:
-                raise WikidataRdfSerializationException(
-                    "Item could not be RDF-serialized.", revision, exception
-                )
-
-        elif model == self._model_property:
-            try:
-                document = self._json_deserializer.deserializePropertyDocument(
-                    revision.text
-                )
-            except JException as exception:
-                raise WikidataRdfSerializationException(
-                    "Property could not be JSON-deserialized.", revision, exception
-                )
-            try:
-                rdf_converter.writePropertyDocument(document)
-            except JException as exception:
-                raise WikidataRdfSerializationException(
-                    "Property could not be RDF-serialized.", revision, exception
-                )
-
-        else:
+        model = revision.model
+        if model != self._model_item and model != self._model_property:
             # Lexemes, Wikitext pages (i.e., discussion pages), and others.
             raise WikidataRdfSerializationException(
                 f"Entity model '{revision.model}' is not RDF-serializable.", revision
             )
 
+        exception_msg = ""
+        try:
+            if model == self._model_item:
+                exception_msg = "Item could not be JSON-deserialized."
+                doc = self._json_deserializer.deserializeItemDocument(revision.text)
+
+                exception_msg = "Item could not be RDF-serialized."
+                rdf_converter.writeItemDocument(doc)
+
+            elif model == self._model_property:
+                exception_msg = "Property could not be JSON-deserialized."
+                doc = self._json_deserializer.deserializePropertyDocument(revision.text)
+
+                exception_msg = "Property could not be RDF-serialized."
+                rdf_converter.writePropertyDocument(doc)
+
+        except JException as exception:
+            raise WikidataRdfSerializationException(exception_msg, revision, exception)
+
         rdf_writer.finish()
 
         return [
-            RdfTriple(
-                *map(self._prefix_ntriples_uri, triple_str[: -len(" .")].split(" ", 2))
-            )
-            for triple_str in str(output_stream).splitlines()
+            RdfTriple(*map(self._prefix_ntriples_uri, line[: -len(" .")].split(" ", 2)))
+            for line in str(output_stream).splitlines()
         ]
 
     @classmethod
@@ -275,9 +257,9 @@ def main() -> None:
         # / "wikidatawiki-20210401-pages-meta-history25.xml-p67174382p67502430.7z"
     )
 
-    exception_reason_counter = Counter()
+    exception_reason_counter = Counter[str]()
 
-    for i, revision in enumerate(wikidata_dump.iter_revisions()):
+    for revision in wikidata_dump.iter_revisions():
         p = Path(
             settings.kg_evolve.data_dir
             / "rdf"
@@ -298,9 +280,6 @@ def main() -> None:
         with p.open("w", encoding="UTF-8") as fout:
             for triple in triples:
                 fout.write(" ".join(triple) + " .\n")  # noqa: T001
-
-        if i == 10000:
-            break
 
     with Path(
         settings.kg_evolve.data_dir

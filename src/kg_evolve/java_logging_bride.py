@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, MutableMapping, TypeVar
 
 if TYPE_CHECKING:
     F = TypeVar("F", bound=Callable[..., Any])
@@ -23,9 +23,9 @@ if TYPE_CHECKING:
         ...
 
 
-from logging import getLogger
+from logging import LoggerAdapter, getLogger
 
-from jpype import JClass, JImplements, JObject, JOverride
+from jpype import JClass, JImplements, JObject, JOverride  # type: ignore # noqa: F811
 from nasty_utils import ColoredBraceStyleAdapter
 
 
@@ -34,10 +34,10 @@ class JavaLoggingBridge:
     def __init__(self) -> None:
         JSimpleFormatter = JClass("java.util.logging.SimpleFormatter")  # noqa: N806
         self._formatter = JSimpleFormatter()
-        self._loggers = {}
+        self._loggers: MutableMapping[str, LoggerAdapter] = {}
 
     @JOverride
-    def isLoggable(self, record: JObject) -> bool:
+    def isLoggable(self, record: JObject) -> bool:  # noqa: N802
         name = str(record.getLoggerName())
 
         logger = self._loggers.get(name)
