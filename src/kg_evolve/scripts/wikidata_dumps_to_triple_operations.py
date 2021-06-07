@@ -113,6 +113,9 @@ class WikidataDumpsToTripleOperations(Program):
         # Remove all triples, where the respective entity is not the subject, and all
         # triples, which do not point to other Wikidata items with Wikidata predicates.
 
+        if not triples:
+            return triples
+
         # First triple of every revision always has the form:
         # <entity> rdf:type wikibase:<entity-type>
         entity = triples[0].subject
