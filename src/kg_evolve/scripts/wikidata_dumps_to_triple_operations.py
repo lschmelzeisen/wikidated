@@ -75,7 +75,7 @@ class WikidataDumpsToTripleOperations(Program):
         for title, revisions in groupby(
             dump.iter_revisions(), lambda r: r.prefixed_title
         ):
-            page_file = triple_operation_dir / dump_file.name / (title + ".ttlops.xz")
+            page_file = triple_operation_dir / dump_file.name / (title + ".ttlops")
             if page_file.exists():
                 for _ in revisions:  # Deplete iterator.
                     pass

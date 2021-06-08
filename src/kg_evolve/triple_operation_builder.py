@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-import lzma
 from datetime import datetime
 from enum import Enum
 from logging import getLogger
@@ -87,7 +86,7 @@ class TripleOperationBuilder:
         if deleted_triples or added_triples:
             if self._file_handle is None:
                 self._file.parent.mkdir(parents=True, exist_ok=True)
-                self._file_handle = lzma.open(self._file_tmp, "wt", encoding="UTF-8")
+                self._file_handle = self._file_tmp.open("w", encoding="UTF-8")
 
             for triple in sorted(deleted_triples):
                 self._file_handle.write(
