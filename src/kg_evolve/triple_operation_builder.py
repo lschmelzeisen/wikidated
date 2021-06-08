@@ -92,10 +92,12 @@ class TripleOperationBuilder:
             for triple in sorted(deleted_triples):
                 self._file_handle.write(
                     str(TripleOperation(timestamp, TripleOperationType.ADD, *triple))
+                    + "\n"
                 )
             for triple in sorted(added_triples):
                 self._file_handle.write(
                     str(TripleOperation(timestamp, TripleOperationType.DELETE, *triple))
+                    + "\n"
                 )
 
     def __enter__(self) -> TripleOperationBuilder:

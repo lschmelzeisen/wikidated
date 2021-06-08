@@ -101,10 +101,10 @@ class WikidataDumpsToTripleOperations(Program):
         ) as fout:
             fout.write(
                 "Exceptions occurred when RDF-serializing "
-                f"(out of {num_revisions} revisions):"
+                f"(out of {num_revisions} revisions):\n"
             )
             for reason, count in rdf_serializer_exception_counter.most_common():
-                fout.write(f"{reason} ({count})\n")
+                fout.write(f"  {reason} ({count})\n")
 
         shutdownJVM()
 
