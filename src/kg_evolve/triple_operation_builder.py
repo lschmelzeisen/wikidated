@@ -81,6 +81,7 @@ class TripleOperationBuilder:
         triples_set = set(triples)
         deleted_triples = self._state - triples_set
         added_triples = triples_set - self._state
+        self._state.difference_update(deleted_triples)
         self._state.update(added_triples)
 
         if deleted_triples or added_triples:
@@ -90,12 +91,12 @@ class TripleOperationBuilder:
 
             for triple in sorted(deleted_triples):
                 self._file_handle.write(
-                    str(TripleOperation(timestamp, TripleOperationType.ADD, *triple))
+                    str(TripleOperation(timestamp, TripleOperationType.DELETE, *triple))
                     + "\n"
                 )
             for triple in sorted(added_triples):
                 self._file_handle.write(
-                    str(TripleOperation(timestamp, TripleOperationType.DELETE, *triple))
+                    str(TripleOperation(timestamp, TripleOperationType.ADD, *triple))
                     + "\n"
                 )
 
