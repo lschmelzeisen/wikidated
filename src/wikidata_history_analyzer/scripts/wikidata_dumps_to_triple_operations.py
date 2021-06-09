@@ -24,13 +24,16 @@ from jpype import shutdownJVM, startJVM  # type: ignore
 from nasty_utils import Argument, ColoredBraceStyleAdapter, Program, ProgramConfig
 from overrides import overrides
 
-import kg_evolve
-from kg_evolve._paths import get_wikidata_dump_dir, get_wikidata_triple_operation_dir
-from kg_evolve.java_logging_bride import setup_java_logging_bridge
-from kg_evolve.settings_ import KgEvolveSettings
-from kg_evolve.triple_operation_builder import TripleOperationBuilder
-from kg_evolve.wikidata_dump import WikidataDump
-from kg_evolve.wikidata_rdf_serializer import (
+import wikidata_history_analyzer
+from wikidata_history_analyzer._paths import (
+    get_wikidata_dump_dir,
+    get_wikidata_triple_operation_dir,
+)
+from wikidata_history_analyzer.java_logging_bride import setup_java_logging_bridge
+from wikidata_history_analyzer.settings_ import WikidataHistoryAnalyzerSettings
+from wikidata_history_analyzer.triple_operation_builder import TripleOperationBuilder
+from wikidata_history_analyzer.wikidata_dump import WikidataDump
+from wikidata_history_analyzer.wikidata_rdf_serializer import (
     RdfTriple,
     WikidataRdfSerializationException,
     WikidataRdfSerializer,
@@ -42,12 +45,12 @@ _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 class WikidataDumpsToTripleOperations(Program):
     class Config(ProgramConfig):
         title = "wikidata-dumps-to-triple-operations"
-        version = kg_evolve.__version__
+        version = wikidata_history_analyzer.__version__
         description = (
             "Serialize items from Wikidata dumps into streams of RDF triple operations."
         )
 
-    settings: KgEvolveSettings = Argument(
+    settings: WikidataHistoryAnalyzerSettings = Argument(
         alias="config", description="Overwrite default config file path."
     )
 
@@ -57,7 +60,7 @@ class WikidataDumpsToTripleOperations(Program):
 
     @overrides
     def run(self) -> None:
-        settings = self.settings.kg_evolve
+        settings = self.settings.wikidata_history_analyzer
         dump_dir = get_wikidata_dump_dir(settings.data_dir)
         triple_operation_dir = get_wikidata_triple_operation_dir(settings.data_dir)
         dump_file = dump_dir / self.dump_file

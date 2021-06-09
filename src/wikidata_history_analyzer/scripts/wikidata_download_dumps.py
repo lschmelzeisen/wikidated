@@ -30,10 +30,10 @@ from nasty_utils import (
 from overrides import overrides
 from tqdm import tqdm
 
-import kg_evolve
-from kg_evolve._paths import get_wikidata_dump_dir
-from kg_evolve._utils import sha1sum
-from kg_evolve.settings_ import KgEvolveSettings
+import wikidata_history_analyzer
+from wikidata_history_analyzer._paths import get_wikidata_dump_dir
+from wikidata_history_analyzer._utils import sha1sum
+from wikidata_history_analyzer.settings_ import WikidataHistoryAnalyzerSettings
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
@@ -41,19 +41,23 @@ _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 class WikidataDownloadDumps(Program):
     class Config(ProgramConfig):
         title = "wikidata-download-dumps"
-        version = kg_evolve.__version__
+        version = wikidata_history_analyzer.__version__
         description = "Download Wikidata dumps."
 
-    settings: KgEvolveSettings = Argument(
+    settings: WikidataHistoryAnalyzerSettings = Argument(
         alias="config", description="Overwrite default config file path."
     )
 
     @overrides
     def run(self) -> None:
-        dump_dir = get_wikidata_dump_dir(self.settings.kg_evolve.data_dir)
+        dump_dir = get_wikidata_dump_dir(
+            self.settings.wikidata_history_analyzer.data_dir
+        )
         dump_dir.mkdir(exist_ok=True, parents=True)
-        dump_mirror_base = self.settings.kg_evolve.wikidata_dump_mirror_base
-        dump_version = self.settings.kg_evolve.wikidata_dump_version
+        dump_mirror_base = (
+            self.settings.wikidata_history_analyzer.wikidata_dump_mirror_base
+        )
+        dump_version = self.settings.wikidata_history_analyzer.wikidata_dump_version
 
         _LOGGER.info("Downloading dump status...")
         dump_status_url = (

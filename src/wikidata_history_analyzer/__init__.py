@@ -16,7 +16,7 @@
 
 __version__ = "dev"
 try:
-    from kg_evolve._version import __version__
+    from wikidata_history_analyzer._version import __version__
 except ImportError:
     pass
 
@@ -28,7 +28,7 @@ __version_info__ = tuple(
 
 import logging
 
-from kg_evolve.__main__ import main
+from wikidata_history_analyzer.__main__ import main
 
 __all__ = [
     "__version__",

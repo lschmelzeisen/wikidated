@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-from kg_evolve import main
+from wikidata_history_analyzer import main
 
 
 def test_cli() -> None:

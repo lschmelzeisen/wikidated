@@ -21,7 +21,7 @@ from typing import NamedTuple, Optional, Sequence
 from jpype import JClass, JException, JObject  # type: ignore
 from nasty_utils import ColoredBraceStyleAdapter
 
-from kg_evolve.wikidata_dump import WikidataDumpRevision
+from wikidata_history_analyzer.wikidata_dump import WikidataDumpRevision
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 

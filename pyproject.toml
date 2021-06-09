@@ -37,7 +37,7 @@ quiet = true
         # Type-checking
         "TYPE_CHECKING",
     ]
-    omit = ["src/kg_evolve/__main__.py"]
+    omit = ["src/wikidata_history_analyzer/__main__.py"]
     skip_covered = true
     skip_empty = true
 
@@ -68,5 +68,5 @@ isort = 1
 testpaths = ["tests"]
 
 [tool.setuptools_scm]
-write_to = "src/kg_evolve/_version.py"
+write_to = "src/wikidata_history_analyzer/_version.py"
 write_to_template = "__version__ = \"{version}\"\n"

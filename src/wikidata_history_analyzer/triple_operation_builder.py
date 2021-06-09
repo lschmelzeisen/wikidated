@@ -25,7 +25,7 @@ from typing import IO, NamedTuple, Optional, Sequence, Set, Type
 
 from nasty_utils import ColoredBraceStyleAdapter
 
-from kg_evolve.wikidata_rdf_serializer import RdfTriple
+from wikidata_history_analyzer.wikidata_rdf_serializer import RdfTriple
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 

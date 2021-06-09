@@ -28,7 +28,7 @@ from xml.sax.saxutils import unescape
 from nasty_utils import ColoredBraceStyleAdapter
 from tqdm import tqdm
 
-from kg_evolve._utils import p7z_open
+from wikidata_history_analyzer._utils import p7z_open
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 

@@ -14,20 +14,17 @@
 # limitations under the License.
 #
 
-from pathlib import Path
+from __future__ import annotations
 
-from nasty_utils import LoggingSettings, Settings, SettingsConfig
+from sys import stdout
+from typing import Union
 
-
-class KgEvolveInternalSettings(Settings):
-    data_dir: Path
-    wikidata_toolkit_jars_dir: Path
-    wikidata_dump_version: str
-    wikidata_dump_mirror_base: str
+from wikidata_history_analyzer import __version__
 
 
-class KgEvolveSettings(LoggingSettings):
-    class Config(SettingsConfig):
-        search_path = Path("kg-evolve.toml")
+def main(*_args: Union[None, str]) -> None:
+    stdout.write(f"wikidata-history-analyzer {__version__}\n")
 
-    kg_evolve: KgEvolveInternalSettings
+
+if __name__ == "__main__":
+    main()
