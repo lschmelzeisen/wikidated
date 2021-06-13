@@ -14,8 +14,12 @@
 # limitations under the License.
 #
 
+import atexit
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from itertools import groupby
 from logging import getLogger
+from multiprocessing import get_context
+from os import getpid
 from pathlib import Path
 from sys import argv
 from typing import Counter, Sequence
@@ -23,6 +27,7 @@ from typing import Counter, Sequence
 from jpype import shutdownJVM, startJVM  # type: ignore
 from nasty_utils import Argument, ColoredBraceStyleAdapter, Program, ProgramConfig
 from overrides import overrides
+from tqdm import tqdm
 
 import wikidata_history_analyzer
 from wikidata_history_analyzer._paths import (
@@ -54,21 +59,48 @@ class WikidataDumpsToTripleOperations(Program):
         alias="config", description="Overwrite default config file path."
     )
 
-    dump_file: Path = Argument(
-        alias="dump-file", short_alias="f", description="Dump file to process."
-    )
-
     @overrides
     def run(self) -> None:
+        dump_files = (
+            "wikidatawiki-20210401-pages-meta-history1.xml-p407p543.7z",
+            "wikidatawiki-20210401-pages-meta-history1.xml-p1683p3894.7z",
+            "wikidatawiki-20210401-pages-meta-history1.xml-p1318p1682.7z",
+            "wikidatawiki-20210401-pages-meta-history1.xml-p7685p10732.7z",
+        )
+        with ProcessPoolExecutor(
+            max_workers=4,
+            initializer=self._init_worker,
+            initargs=(
+                self.settings.wikidata_history_analyzer.wikidata_toolkit_jars_dir / "*",
+            ),
+        ) as pool, tqdm(desc="Running", total=len(dump_files)) as progress_bar:
+            futures = (
+                pool.submit(self._process_dump_file, Path(dump_file))
+                for dump_file in dump_files
+            )
+            for future in as_completed(futures):
+                assert future.result(timeout=0) is None
+                progress_bar.update(1)
+
+    @classmethod
+    def _init_worker(cls, jvm_classpath: Path) -> None:
+        _LOGGER.info("Starting JVM in worker process {}...", getpid())
+        _LOGGER.debug("JVM classpath: {}", jvm_classpath)
+        startJVM(classpath=[str(jvm_classpath)])
+        setup_java_logging_bridge()
+        atexit.register(cls._exit_worker)
+
+    @classmethod
+    def _exit_worker(cls) -> None:
+        _LOGGER.info("Shutting down JVM in worker process {}...", getpid())
+        shutdownJVM()
+
+    def _process_dump_file(self, dump_file: Path) -> None:
         settings = self.settings.wikidata_history_analyzer
         dump_dir = get_wikidata_dump_dir(settings.data_dir)
         triple_operation_dir = get_wikidata_triple_operation_dir(settings.data_dir)
-        dump_file = dump_dir / self.dump_file
-        dump = WikidataDump(dump_file)
 
-        startJVM(classpath=[str(settings.wikidata_toolkit_jars_dir / "*")])
-        setup_java_logging_bridge()
-
+        dump = WikidataDump(dump_dir / dump_file)
         rdf_serializer = WikidataRdfSerializer(
             dump_dir / f"wikidatawiki-{settings.wikidata_dump_version}-sites.sql.gz"
         )
@@ -108,8 +140,6 @@ class WikidataDumpsToTripleOperations(Program):
             )
             for reason, count in rdf_serializer_exception_counter.most_common():
                 fout.write(f"  {reason} ({count})\n")
-
-        shutdownJVM()
 
     @classmethod
     def _filter_triples(cls, triples: Sequence[RdfTriple]) -> Sequence[RdfTriple]:
