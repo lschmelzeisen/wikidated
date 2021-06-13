@@ -18,7 +18,6 @@ import atexit
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from itertools import groupby
 from logging import getLogger
-from multiprocessing import get_context
 from os import getpid
 from pathlib import Path
 from sys import argv
@@ -34,7 +33,10 @@ from wikidata_history_analyzer._paths import (
     get_wikidata_dump_dir,
     get_wikidata_triple_operation_dir,
 )
-from wikidata_history_analyzer.java_logging_bride import setup_java_logging_bridge
+from wikidata_history_analyzer.java_logging_bride import (
+    set_java_logging_file_handler,
+    setup_java_logging_bridge,
+)
 from wikidata_history_analyzer.settings_ import WikidataHistoryAnalyzerSettings
 from wikidata_history_analyzer.triple_operation_builder import TripleOperationBuilder
 from wikidata_history_analyzer.wikidata_dump import WikidataDump
@@ -85,7 +87,6 @@ class WikidataDumpsToTripleOperations(Program):
     @classmethod
     def _init_worker(cls, jvm_classpath: Path) -> None:
         _LOGGER.info("Starting JVM in worker process {}...", getpid())
-        _LOGGER.debug("JVM classpath: {}", jvm_classpath)
         startJVM(classpath=[str(jvm_classpath)])
         setup_java_logging_bridge()
         atexit.register(cls._exit_worker)
@@ -100,6 +101,10 @@ class WikidataDumpsToTripleOperations(Program):
         dump_dir = get_wikidata_dump_dir(settings.data_dir)
         triple_operation_dir = get_wikidata_triple_operation_dir(settings.data_dir)
 
+        out_dump_dir = triple_operation_dir / dump_file.name
+        out_dump_dir.mkdir(parents=True, exist_ok=True)
+        set_java_logging_file_handler(out_dump_dir / "rdf-serialization.exceptions.log")
+
         dump = WikidataDump(dump_dir / dump_file)
         rdf_serializer = WikidataRdfSerializer(
             dump_dir / f"wikidatawiki-{settings.wikidata_dump_version}-sites.sql.gz"
@@ -110,7 +115,7 @@ class WikidataDumpsToTripleOperations(Program):
         for title, revisions in groupby(
             dump.iter_revisions(), lambda r: r.prefixed_title
         ):
-            page_file = triple_operation_dir / dump_file.name / (title + ".ttlops")
+            page_file = out_dump_dir / (title + ".ttlops")
             if page_file.exists():
                 for _ in revisions:  # Deplete iterator.
                     pass
@@ -131,7 +136,7 @@ class WikidataDumpsToTripleOperations(Program):
                         self._filter_triples(triples), revision.timestamp
                     )
 
-        with (triple_operation_dir / dump_file.name / "exceptions.log").open(
+        with (triple_operation_dir / dump_file.name / "rdf-serialization.log").open(
             "w", encoding="UTF-8"
         ) as fout:
             fout.write(

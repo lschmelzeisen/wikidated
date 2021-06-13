@@ -14,7 +14,9 @@
 # limitations under the License.
 #
 
-from typing import TYPE_CHECKING, Any, Callable, MutableMapping, TypeVar
+from logging import FileHandler, Formatter, Handler, Logger, LogRecord, getLogger
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Callable, MutableMapping, Optional, TypeVar
 
 if TYPE_CHECKING:
     F = TypeVar("F", bound=Callable[..., Any])
@@ -23,35 +25,46 @@ if TYPE_CHECKING:
         ...
 
 
-from logging import LoggerAdapter, getLogger
-
 from jpype import JClass, JImplements, JObject, JOverride  # type: ignore # noqa: F811
-from nasty_utils import ColoredBraceStyleAdapter
+
+_JAVA_LOGGING_FILE_HANDLER: Optional[Handler] = None
 
 
 @JImplements("java.util.logging.Filter", deferred=True)
 class JavaLoggingBridge:
     def __init__(self) -> None:
-        JSimpleFormatter = JClass("java.util.logging.SimpleFormatter")  # noqa: N806
-        self._formatter = JSimpleFormatter()
-        self._loggers: MutableMapping[str, LoggerAdapter] = {}
+        self._formatter = JClass("java.util.logging.SimpleFormatter")()
+        self._loggers: MutableMapping[str, Logger] = {}
 
     @JOverride
     def isLoggable(self, record: JObject) -> bool:  # noqa: N802
-        name = str(record.getLoggerName())
+        name = f"jpype.{record.getLoggerName()}"
+        # Transform Java log level to Python log level
+        level = max(record.getLevel().intValue() // 10 - 60, 10)
+        # Format message with potential parameters. (Don't know how to postpone this
+        # until after we are sure the message will be displayed.)
+        message = str(self._formatter.formatMessage(record))
 
         logger = self._loggers.get(name)
         if logger is None:
-            logger = ColoredBraceStyleAdapter(getLogger(name))
+            logger = getLogger(name)
             self._loggers[name] = logger
 
-        logger.log(
-            # Transform Java log level to Python log level:
-            max(record.getLevel().intValue() / 10 - 60, 10),
-            # Format message with potential parameters. (Don't know how to postpone this
-            # until after we are sure the message will be displayed.)
-            str(self._formatter.formatMessage(record)),
-        )
+        logger.log(level, message)
+        if _JAVA_LOGGING_FILE_HANDLER:
+            _JAVA_LOGGING_FILE_HANDLER.handle(
+                LogRecord(
+                    name=name,
+                    level=level,
+                    pathname="Unknown.java",
+                    lineno=-1,
+                    msg=message,
+                    args=(),
+                    exc_info=None,
+                    func=None,
+                    sinfo=None,
+                )
+            )
 
         # Causes the Java-configured logging handler to discard all messages.
         return False
@@ -67,3 +80,13 @@ def setup_java_logging_bridge() -> None:
     root_logger = log_manager.getLogger("")
     root_logger.setLevel(JClass("java.util.logging.Level").ALL)
     root_logger.addHandler(dummy_handler)
+
+
+def set_java_logging_file_handler(
+    file: Path, formatter: Optional[Formatter] = None
+) -> None:
+    global _JAVA_LOGGING_FILE_HANDLER
+    _JAVA_LOGGING_FILE_HANDLER = FileHandler(file)
+    _JAVA_LOGGING_FILE_HANDLER.setFormatter(
+        formatter or Formatter("{asctime} {levelname:.1} [{name}] {message}", style="{")
+    )
