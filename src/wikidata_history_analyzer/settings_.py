@@ -20,6 +20,7 @@ from nasty_utils import LoggingSettings, Settings, SettingsConfig
 
 
 class WikidataHistoryAnalyzerInternalSettings(Settings):
+    num_workers: int
     data_dir: Path
     wikidata_toolkit_jars_dir: Path
     wikidata_dump_version: str

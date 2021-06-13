@@ -70,7 +70,7 @@ class WikidataDumpsToTripleOperations(Program):
             "wikidatawiki-20210401-pages-meta-history1.xml-p7685p10732.7z",
         )
         with ProcessPoolExecutor(
-            max_workers=4,
+            max_workers=self.settings.wikidata_history_analyzer.num_workers,
             initializer=self._init_worker,
             initargs=(
                 self.settings.wikidata_history_analyzer.wikidata_toolkit_jars_dir / "*",
