@@ -180,6 +180,12 @@ class WikidataRdfSerializer:
         )
         rdf_converter.setTasks(self._tasks)
 
+        # The following two method calls are part of the Wikidata Toolkit's
+        # RdfSerializer. They add RDF triples that are independent of the actual
+        # revision being exported. Because of this, we do not call them here.
+        # rdf_converter.writeNamespaceDeclarations()
+        # rdf_converter.writeBasicDeclarations()
+
         if '"redirect":' in revision.text:
             # TODO: document that revisions that contain the "redirect" field in their
             #  JSON indicate that the respective entity is being redirected to the
@@ -203,17 +209,37 @@ class WikidataRdfSerializer:
                 doc = self._json_deserializer.deserializeItemDocument(revision.text)
 
                 exception_msg = "Item could not be RDF-serialized."
-                rdf_converter.writeItemDocument(doc)
+                # Taken from RdfConverter.writeItemDocument:
+                subject = rdf_writer.getUri(doc.getEntityId().getIri())
+                rdf_converter.writeDocumentType(subject, self._JRdfWriter.WB_ITEM)
+                rdf_converter.writeDocumentTerms(doc)
+                rdf_converter.writeStatements(doc)
+                rdf_converter.writeSiteLinks(subject, doc.getSiteLinks())
 
             elif model == self._model_property:
                 exception_msg = "Property could not be JSON-deserialized."
                 doc = self._json_deserializer.deserializePropertyDocument(revision.text)
 
                 exception_msg = "Property could not be RDF-serialized."
-                rdf_converter.writePropertyDocument(doc)
+                # Taken from RdfConverter.writePropertyDocument:
+                subject = rdf_writer.getUri(doc.getEntityId().getIri())
+                rdf_converter.writeDocumentType(subject, self._JRdfWriter.WB_PROPERTY)
+                rdf_converter.writePropertyDatatype(doc)
+                rdf_converter.writeDocumentTerms(doc)
+                rdf_converter.writeStatements(doc)
+                rdf_converter.writeInterPropertyLinks(doc)
 
         except JException as exception:
             raise WikidataRdfSerializationException(exception_msg, revision, exception)
+
+        # The RdfConverter.finishDocument() method in Wikidata Toolkit is called from
+        # both RdfConverter.writeItemDocument and RdfConverter.writePropertyDocument and
+        # exports RDF triples like "this property used above is a complement of this
+        # other property". However, this information is not actually stored in the
+        # revisions themselves, but rather queried from the internet. Because of this
+        # it is also does not change between revisions.  Because of this, we do not call
+        # it here.
+        # rdf_converter.finishDocument()
 
         rdf_writer.finish()
 
