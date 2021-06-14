@@ -21,5 +21,9 @@ def get_wikidata_dump_dir(data_dir: Path) -> Path:
     return data_dir / "dumpfiles"
 
 
+def get_wikidata_rdf_dir(data_dir: Path) -> Path:
+    return data_dir / "rdf"
+
+
 def get_wikidata_triple_operation_dir(data_dir: Path) -> Path:
     return data_dir / "triple-operations"
