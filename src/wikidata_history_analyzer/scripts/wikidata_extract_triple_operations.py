@@ -52,13 +52,11 @@ _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 _UPDATE_FREQUENCY = 5  # Seconds
 
 
-class WikidataDumpsToTripleOperations(Program):
+class WikidataExtractTripleOperations(Program):
     class Config(ProgramConfig):
-        title = "wikidata-dumps-to-triple-operations"
+        title = "wikidata-extract-triple-operations"
         version = wikidata_history_analyzer.__version__
-        description = (
-            "Serialize items from Wikidata dumps into streams of RDF triple operations."
-        )
+        description = "Extract steams of RDF triple operations for each page."
 
     settings: WikidataHistoryAnalyzerSettings = Argument(
         alias="config", description="Overwrite default config file path."
@@ -158,15 +156,17 @@ class WikidataDumpsToTripleOperations(Program):
         settings = self.settings.wikidata_history_analyzer
         dump_dir = get_wikidata_dump_dir(settings.data_dir)
         triple_operation_dir = get_wikidata_triple_operation_dir(settings.data_dir)
-        out_dump_dir = triple_operation_dir / dump_file.name
-        out_dump_dir.mkdir(parents=True, exist_ok=True)
+        triple_operation_dump_dir = triple_operation_dir / dump_file.name
+        triple_operation_dump_dir.mkdir(parents=True, exist_ok=True)
         dump = WikidataDump(dump_dir / dump_file)
 
         # Upper bound for the number of possible pages in a dump.
         max_pages = int(dump.max_page_id) - int(dump.min_page_id) + 1
         progress_dict[dump_file.name] = (0, max_pages)
 
-        set_java_logging_file_handler(out_dump_dir / "rdf-serialization.exceptions.log")
+        set_java_logging_file_handler(
+            triple_operation_dump_dir / "rdf-serialization.exceptions.log"
+        )
         rdf_serializer = WikidataRdfSerializer(
             dump_dir / f"wikidatawiki-{settings.wikidata_dump_version}-sites.sql.gz"
         )
@@ -180,7 +180,7 @@ class WikidataDumpsToTripleOperations(Program):
                 lambda r: r.prefixed_title,
             )
         ):
-            page_file = out_dump_dir / (title + ".ttlops")
+            page_file = triple_operation_dump_dir / (title + ".ttlops")
             if page_file.exists():
                 for _ in revisions:  # Deplete iterator.
                     pass
@@ -246,7 +246,7 @@ class WikidataDumpsToTripleOperations(Program):
 def main(*args: str) -> None:
     if not args:
         args = tuple(argv[1:])
-    WikidataDumpsToTripleOperations.init(*args).run()
+    WikidataExtractTripleOperations.init(*args).run()
 
 
 if __name__ == "__main__":
