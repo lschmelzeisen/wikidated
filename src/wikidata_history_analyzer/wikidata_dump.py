@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import re
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import date, datetime
 from itertools import chain
@@ -87,9 +88,9 @@ class WikidataDump:
         )
         if not match:
             raise WikidataDumpInvalidFileException(self._file)
-        self._date = date(int(match["year"]), int(match["month"]), int(match["day"]))
-        self._min_page_id = match["min_page_id"]
-        self._max_page_id = match["max_page_id"]
+        self.date_ = date(int(match["year"]), int(match["month"]), int(match["day"]))
+        self.min_page_id = match["min_page_id"]
+        self.max_page_id = match["max_page_id"]
 
     def site_info(self) -> WikidataDumpSiteInfo:
         with p7z_open(self._file, encoding="UTF-8") as fin:
@@ -97,22 +98,34 @@ class WikidataDump:
             self._assert_opening_tag(next(lines), "mediawiki")
             return self._process_site_info(lines)
 
-    def iter_revisions(self) -> Iterator[WikidataDumpRevision]:
-        num_pages = int(self._max_page_id) - int(self._min_page_id) + 1
-        with p7z_open(self._file, encoding="UTF-8") as fin, tqdm(
-            desc=self._file.name, total=num_pages, dynamic_ncols=True
-        ) as progress_bar:
+    def iter_revisions(
+        self, display_progress_bar: bool = True
+    ) -> Iterator[WikidataDumpRevision]:
+        num_pages = int(self.max_page_id) - int(self.min_page_id) + 1
+        progress_bar: Optional[tqdm[None]] = (
+            tqdm(desc=self._file.name, total=num_pages, dynamic_ncols=True)
+            if display_progress_bar
+            else None
+        )
+
+        with p7z_open(
+            self._file, encoding="UTF-8"
+        ) as fin, progress_bar or nullcontext():
             lines = iter(cast(TextIO, fin))
             self._assert_opening_tag(next(lines), "mediawiki")
             self._assert_opening_tag(next(lines), "siteinfo")
+
             for line in lines:
                 if self._is_closing_tag(line, "siteinfo"):
                     break
+
             for line in lines:
                 if self._is_closing_tag(line, "mediawiki"):
                     break
                 yield from self._process_page(chain((line,), lines))
-                progress_bar.update(1)
+                if progress_bar:
+                    progress_bar.update(1)
+
             try:
                 line = next(lines)
                 raise Exception(f"Expected EOF, instead line was: '{line}'.")

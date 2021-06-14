@@ -83,9 +83,14 @@ def setup_java_logging_bridge() -> None:
 
 
 def set_java_logging_file_handler(
-    file: Path, formatter: Optional[Formatter] = None
+    file: Optional[Path], formatter: Optional[Formatter] = None
 ) -> None:
     global _JAVA_LOGGING_FILE_HANDLER
+
+    if not file:
+        _JAVA_LOGGING_FILE_HANDLER = None
+        return
+
     _JAVA_LOGGING_FILE_HANDLER = FileHandler(file)
     _JAVA_LOGGING_FILE_HANDLER.setFormatter(
         formatter or Formatter("{asctime} {levelname:.1} [{name}] {message}", style="{")
