@@ -42,7 +42,6 @@ from wikidata_history_analyzer.settings_ import WikidataHistoryAnalyzerSettings
 from wikidata_history_analyzer.triple_operation_builder import TripleOperationBuilder
 from wikidata_history_analyzer.wikidata_dump import WikidataDump
 from wikidata_history_analyzer.wikidata_rdf_serializer import (
-    RdfTriple,
     WikidataRdfSerializationException,
     WikidataRdfSerializer,
 )
@@ -198,17 +197,17 @@ class WikidataExtractTripleOperations(Program):
                         continue
 
                     triple_operation_builder.process_triples(
-                        self._filter_triples(triples), revision.timestamp
+                        triples, revision.timestamp
                     )
 
             progress_dict[dump_file.name] = (num_pages, max_pages)
-
-        set_java_logging_file_handler(None)
 
         # Now we know how many pages where actually in the dump and can correct the
         # previous upper bound of max_pages. Also this will trigger closing this
         # subprocesses progress bar in the main thread.
         progress_dict[dump_file.name] = (num_pages, num_pages)
+
+        set_java_logging_file_handler(None)
 
         with (triple_operation_dir / dump_file.name / "rdf-serialization.log").open(
             "w", encoding="UTF-8"
@@ -219,28 +218,6 @@ class WikidataExtractTripleOperations(Program):
             )
             for reason, count in rdf_serializer_exception_counter.most_common():
                 fout.write(f"  {reason} ({count})\n")
-
-    @classmethod
-    def _filter_triples(cls, triples: Sequence[RdfTriple]) -> Sequence[RdfTriple]:
-        # Remove all triples, where the respective entity is not the subject, and all
-        # triples, which do not point to other Wikidata items with Wikidata predicates.
-
-        if not triples:
-            return triples
-
-        # First triple of every revision always has the form:
-        # <entity> rdf:type wikibase:<entity-type>
-        entity = triples[0].subject
-
-        return [
-            triple
-            for triple in triples
-            if (
-                triple.subject == entity
-                and triple.predicate.startswith("wdt:")
-                and triple.object.startswith("wd:")
-            )
-        ]
 
 
 def main(*args: str) -> None:

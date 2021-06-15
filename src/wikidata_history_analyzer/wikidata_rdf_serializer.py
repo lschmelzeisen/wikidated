@@ -110,9 +110,9 @@ class WikidataRdfSerializer:
             0x0
             # Document terms
             # TODO: document labels, descriptions, aliases
-            # | JRdfSerializer.TASK_LABELS
-            # | JRdfSerializer.TASK_DESCRIPTIONS
-            # | JRdfSerializer.TASK_ALIASES
+            | JRdfSerializer.TASK_LABELS
+            | JRdfSerializer.TASK_DESCRIPTIONS
+            | JRdfSerializer.TASK_ALIASES
             #
             # Statements
             # TODO: document that TASK_SIMPLE_STATEMENTS writes a "simple" statement
@@ -122,21 +122,21 @@ class WikidataRdfSerializer:
             #  is atleast specific to that respective entity.)
             | JRdfSerializer.TASK_SIMPLE_STATEMENTS
             # TODO: document that this means "full" statements (i.e. with reification).
-            # | JRdfSerializer.TASK_STATEMENTS
+            | JRdfSerializer.TASK_STATEMENTS
             #
             # Items
             # TODO: Document item selector
             | JRdfSerializer.TASK_ITEMS
             # TODO: document that TASK_SITELINKS refers to links to Wikipedia articles.
-            # | JRdfSerializer.TASK_SITELINKS
+            | JRdfSerializer.TASK_SITELINKS
             #
             # Properties
             # TODO: Document property selector
-            # | JRdfSerializer.TASK_PROPERTIES
+            | JRdfSerializer.TASK_PROPERTIES
             # TODO: not sure what this is (but it is only applicable to properties)
-            # | JRdfSerializer.TASK_DATATYPES
+            | JRdfSerializer.TASK_DATATYPES
             # TODO: not sure what this is (but it is only applicable to properties)
-            # | JRdfSerializer.TASK_PROPERTY_LINKS
+            | JRdfSerializer.TASK_PROPERTY_LINKS
         )
 
         # Keep references to Java classes here, so they do not have to be looked up
@@ -207,10 +207,10 @@ class WikidataRdfSerializer:
             if model == self._model_item:
                 exception_msg = "Item could not be JSON-deserialized."
                 doc = self._json_deserializer.deserializeItemDocument(revision.text)
+                subject = rdf_writer.getUri(doc.getEntityId().getIri())
 
                 exception_msg = "Item could not be RDF-serialized."
                 # Taken from RdfConverter.writeItemDocument:
-                subject = rdf_writer.getUri(doc.getEntityId().getIri())
                 rdf_converter.writeDocumentType(subject, self._JRdfWriter.WB_ITEM)
                 rdf_converter.writeDocumentTerms(doc)
                 rdf_converter.writeStatements(doc)
@@ -219,10 +219,10 @@ class WikidataRdfSerializer:
             elif model == self._model_property:
                 exception_msg = "Property could not be JSON-deserialized."
                 doc = self._json_deserializer.deserializePropertyDocument(revision.text)
+                subject = rdf_writer.getUri(doc.getEntityId().getIri())
 
                 exception_msg = "Property could not be RDF-serialized."
                 # Taken from RdfConverter.writePropertyDocument:
-                subject = rdf_writer.getUri(doc.getEntityId().getIri())
                 rdf_converter.writeDocumentType(subject, self._JRdfWriter.WB_PROPERTY)
                 rdf_converter.writePropertyDatatype(doc)
                 rdf_converter.writeDocumentTerms(doc)
