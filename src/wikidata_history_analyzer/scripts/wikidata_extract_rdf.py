@@ -87,9 +87,9 @@ class WikidataExtractRdf(Program):
             settings.wikidata_dump_mirror_base,
         )
         dump = None
-        for meta_history_7z_dump in dump_manager.meta_history_7z_dumps():
-            if meta_history_7z_dump.path.name == self.dump_file.name:
-                dump = meta_history_7z_dump
+        for meta_history_dump in dump_manager.meta_history_dumps():
+            if meta_history_dump.path.name == self.dump_file.name:
+                dump = meta_history_dump
                 break
         assert dump is not None
 

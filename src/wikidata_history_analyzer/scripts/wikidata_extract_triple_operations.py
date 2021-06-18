@@ -36,9 +36,7 @@ from wikidata_history_analyzer.jvm_manager import JvmManager
 from wikidata_history_analyzer.settings_ import WikidataHistoryAnalyzerSettings
 from wikidata_history_analyzer.triple_operation_builder import TripleOperationBuilder
 from wikidata_history_analyzer.wikidata_dump_manager import WikidataDumpManager
-from wikidata_history_analyzer.wikidata_meta_history_7z_dump import (
-    WikidataMetaHistory7zDump,
-)
+from wikidata_history_analyzer.wikidata_meta_history_dump import WikidataMetaHistoryDump
 from wikidata_history_analyzer.wikidata_rdf_serializer import (
     WikidataRdfSerializationException,
     WikidataRdfSerializer,
@@ -79,7 +77,7 @@ class WikidataExtractTripleOperations(Program):
                 self.settings.wikidata_history_analyzer.wikidata_toolkit_jars_dir,
             ),
         ) as pool, tqdm(  # Progress bar for total progress.
-            total=len(dump_manager.meta_history_7z_dumps()),
+            total=len(dump_manager.meta_history_dumps()),
             dynamic_ncols=True,
             position=-num_workers,
         ) as progress_bar_overall, Manager() as manager:
@@ -93,10 +91,8 @@ class WikidataExtractTripleOperations(Program):
             progress_bars: MutableMapping[str, tqdm[None]] = {}
 
             futures_not_done = {
-                pool.submit(
-                    self._process_dump_file, meta_history_7z_dump, progress_dict
-                )
-                for meta_history_7z_dump in dump_manager.meta_history_7z_dumps()
+                pool.submit(self._process_dump_file, meta_history_dump, progress_dict)
+                for meta_history_dump in dump_manager.meta_history_dumps()
             }
 
             while True:
@@ -145,7 +141,7 @@ class WikidataExtractTripleOperations(Program):
 
     def _process_dump_file(
         self,
-        dump: WikidataMetaHistory7zDump,
+        dump: WikidataMetaHistoryDump,
         progress_dict: MutableMapping[str, Tuple[int, int]],
     ) -> None:
         assert _JVM_MANAGER is not None

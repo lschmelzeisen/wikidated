@@ -72,7 +72,7 @@ class WikidataDumpInvalidFileException(Exception):
         )
 
 
-class WikidataMetaHistory7zDump:
+class WikidataMetaHistoryDump:
     # Does not use an actual XML library for parsing the dumps content as we can make
     # some fairly strong assumptions about the XML used in the dump. Mainly we have that
     # each element starts/ends on it's own line and that we know the exact order of

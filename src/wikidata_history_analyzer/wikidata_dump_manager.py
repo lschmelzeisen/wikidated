@@ -31,9 +31,7 @@ from wikidata_history_analyzer.wikidata_dump_meta import (
     WikidataDumpFile,
     WikidataDumpStatus,
 )
-from wikidata_history_analyzer.wikidata_meta_history_7z_dump import (
-    WikidataMetaHistory7zDump,
-)
+from wikidata_history_analyzer.wikidata_meta_history_dump import WikidataMetaHistoryDump
 from wikidata_history_analyzer.wikidata_sites_table import WikidataSitesTable
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
@@ -71,17 +69,17 @@ class WikidataDumpManager:
         path, dump_file = next(iter(sites_tables_files.items()))
         return WikidataSitesTable(self._dump_dir / path, dump_file)
 
-    def meta_history_7z_dumps(self) -> Sequence[WikidataMetaHistory7zDump]:
-        meta_history_7z_dump_files = self._dump_status.jobs["metahistory7zdump"].files
+    def meta_history_dumps(self) -> Sequence[WikidataMetaHistoryDump]:
+        meta_history_dump_files = self._dump_status.jobs["metahistory7zdump"].files
         return [
-            WikidataMetaHistory7zDump(self._dump_dir / path, dump_file)
-            for path, dump_file in meta_history_7z_dump_files.items()
+            WikidataMetaHistoryDump(self._dump_dir / path, dump_file)
+            for path, dump_file in meta_history_dump_files.items()
         ]
 
     def download_all(self) -> None:
         downloads = {}
         downloads.update({d.path: d.dump_file for d in (self.sites_table(),)})
-        downloads.update({d.path: d.dump_file for d in self.meta_history_7z_dumps()})
+        downloads.update({d.path: d.dump_file for d in self.meta_history_dumps()})
 
         with tqdm(
             total=len(downloads), dynamic_ncols=True, position=1
