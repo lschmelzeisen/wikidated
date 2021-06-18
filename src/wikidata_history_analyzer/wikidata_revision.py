@@ -14,9 +14,35 @@
 # limitations under the License.
 #
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
+
+from jpype import JClass, JException, JObject  # type: ignore
+
+from wikidata_history_analyzer.jvm_manager import JvmManager
+
+_WDTK_JSON_SERIALIZER: Optional[JObject] = None
+
+
+class WikidataRevisionDeserializationException(Exception):
+    def __init__(
+        self,
+        reason: str,
+        revision: WikidataRevision,
+        exception: Optional[Exception] = None,
+    ) -> None:
+        self.reason = reason
+        self.revision = revision
+        self.exception = exception
+
+    def __str__(self) -> str:
+        return (
+            f"{self.reason} ({self.revision.prefixed_title}, "
+            f"page: {self.revision.page_id}, revision: {self.revision.revision_id})"
+        )
 
 
 @dataclass
@@ -36,3 +62,41 @@ class WikidataRevision:
     format: str
     text: Optional[str]
     sha1: Optional[str]
+
+    def load_wdtk_deserialization(self, _jvm_manager: JvmManager) -> JObject:
+        global _WDTK_JSON_SERIALIZER
+        if _WDTK_JSON_SERIALIZER is None:
+            _WDTK_JSON_SERIALIZER = JClass(
+                "org.wikidata.wdtk.datamodel.helpers.JsonDeserializer"
+            )(JClass("org.wikidata.wdtk.datamodel.helpers.Datamodel").SITE_WIKIDATA)
+
+        if self.text is None:
+            raise WikidataRevisionDeserializationException("Entity has no text.", self)
+
+        # The following is based on WDTK's WikibaseRevisionProcessor.
+
+        try:
+            if '"redirect":' in self.text:
+                return _WDTK_JSON_SERIALIZER.deserializeEntityRedirectDocument(
+                    self.text
+                )
+
+            elif self.content_model == "wikibase-item":
+                return _WDTK_JSON_SERIALIZER.deserializeItemDocument(self.text)
+
+            elif self.content_model == "wikibase-property":
+                return _WDTK_JSON_SERIALIZER.deserializePropertyDocument(self.text)
+
+            elif self.content_model == "wikibase-lexeme":
+                return _WDTK_JSON_SERIALIZER.deserializeLexemeDocument(self.text)
+
+            elif self.content_model == "wikitext":
+                return _WDTK_JSON_SERIALIZER.deserializeMediaInfoDocument(self.text)
+
+            else:
+                return _WDTK_JSON_SERIALIZER.deserializeEntityDocument(self.text)
+
+        except JException as exception:
+            raise WikidataRevisionDeserializationException(
+                "JSON deserialization by Wikidata Toolkit failed.", self, exception
+            )

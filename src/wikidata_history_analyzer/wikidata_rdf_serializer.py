@@ -26,6 +26,44 @@ from wikidata_history_analyzer.wikidata_sites_table import WikidataSitesTable
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
+# Prefixes taken from
+# https://www.mediawiki.org/w/index.php?title=Wikibase/Indexing/RDF_Dump_Format&oldid=4471307#Full_list_of_prefixes
+# but sorted so that the longer URLs come first to enable one-pass prefixing.
+RDF_PREFIXES = {
+    "cc": "http://creativecommons.org/ns#",
+    "dct": "http://purl.org/dc/terms/",
+    "schema": "http://schema.org/",
+    "wikibase": "http://wikiba.se/ontology#",
+    "hint": "http://www.bigdata.com/queryHints#",
+    "bd": "http://www.bigdata.com/rdf#",
+    "geo": "http://www.opengis.net/ont/geosparql#",
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "owl": "http://www.w3.org/2002/07/owl#",
+    "skos": "http://www.w3.org/2004/02/skos/core#",
+    "ontolex": "http://www.w3.org/ns/lemon/ontolex#",
+    "prov": "http://www.w3.org/ns/prov#",
+    "wds": "http://www.wikidata.org/entity/statement/",
+    "wd": "http://www.wikidata.org/entity/",
+    "wdtn": "http://www.wikidata.org/prop/direct-normalized/",
+    "wdt": "http://www.wikidata.org/prop/direct/",
+    "wdno": "http://www.wikidata.org/prop/novalue/",
+    "pqn": "http://www.wikidata.org/prop/qualifier/value-normalized/",
+    "pqv": "http://www.wikidata.org/prop/qualifier/value/",
+    "pq": "http://www.wikidata.org/prop/qualifier/",
+    "prn": "http://www.wikidata.org/prop/reference/value-normalized/",
+    "prv": "http://www.wikidata.org/prop/reference/value/",
+    "pr": "http://www.wikidata.org/prop/reference/",
+    "psn": "http://www.wikidata.org/prop/statement/value-normalized/",
+    "psv": "http://www.wikidata.org/prop/statement/value/",
+    "ps": "http://www.wikidata.org/prop/statement/",
+    "p": "http://www.wikidata.org/prop/",
+    "wdref": "http://www.wikidata.org/reference/",
+    "wdv": "http://www.wikidata.org/value/",
+    "wdata": "http://www.wikidata.org/wiki/Special:EntityData/",
+}
+
 
 class RdfTriple(NamedTuple):
     subject: str
@@ -51,183 +89,122 @@ class WikidataRdfSerializationException(Exception):
         )
 
 
+_JAVA_BYTE_ARRAY_OUTPUT_STREAM: Optional[JClass] = None
+_WDTK_RDF_CONVERTER: Optional[JClass] = None
+_WDTK_RDF_WRITER: Optional[JClass] = None
+_WDTK_PROPERTY_REGISTER: Optional[JObject] = None
+_WDTK_NTRIPLES_FORMAT: Optional[JObject] = None
+_WDTK_ITEM_IRI: Optional[JObject] = None
+_WDTK_PROPERTY_IRI: Optional[JObject] = None
+
+
 class WikidataRdfSerializer:
     # TODO: document that this is basically a mix of RdfSerializer, RdfWriter,
     #  RdfConverter and AbstractRdfConverter.
     # TODO: document that RdfConverter basically only adds the "TASK filtering" on top
     #  of AbstractRdfConverter.
 
-    # Prefixes taken from
-    # https://www.mediawiki.org/w/index.php?title=Wikibase/Indexing/RDF_Dump_Format&oldid=4471307#Full_list_of_prefixes
-    # but sorted so that the longer URLs come first to enable one-pass prefixing.
-    PREFIXES = {
-        "cc": "http://creativecommons.org/ns#",
-        "dct": "http://purl.org/dc/terms/",
-        "schema": "http://schema.org/",
-        "wikibase": "http://wikiba.se/ontology#",
-        "hint": "http://www.bigdata.com/queryHints#",
-        "bd": "http://www.bigdata.com/rdf#",
-        "geo": "http://www.opengis.net/ont/geosparql#",
-        "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-        "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
-        "xsd": "http://www.w3.org/2001/XMLSchema#",
-        "owl": "http://www.w3.org/2002/07/owl#",
-        "skos": "http://www.w3.org/2004/02/skos/core#",
-        "ontolex": "http://www.w3.org/ns/lemon/ontolex#",
-        "prov": "http://www.w3.org/ns/prov#",
-        "wds": "http://www.wikidata.org/entity/statement/",
-        "wd": "http://www.wikidata.org/entity/",
-        "wdtn": "http://www.wikidata.org/prop/direct-normalized/",
-        "wdt": "http://www.wikidata.org/prop/direct/",
-        "wdno": "http://www.wikidata.org/prop/novalue/",
-        "pqn": "http://www.wikidata.org/prop/qualifier/value-normalized/",
-        "pqv": "http://www.wikidata.org/prop/qualifier/value/",
-        "pq": "http://www.wikidata.org/prop/qualifier/",
-        "prn": "http://www.wikidata.org/prop/reference/value-normalized/",
-        "prv": "http://www.wikidata.org/prop/reference/value/",
-        "pr": "http://www.wikidata.org/prop/reference/",
-        "psn": "http://www.wikidata.org/prop/statement/value-normalized/",
-        "psv": "http://www.wikidata.org/prop/statement/value/",
-        "ps": "http://www.wikidata.org/prop/statement/",
-        "p": "http://www.wikidata.org/prop/",
-        "wdref": "http://www.wikidata.org/reference/",
-        "wdv": "http://www.wikidata.org/value/",
-        "wdata": "http://www.wikidata.org/wiki/Special:EntityData/",
-    }
+    def __init__(self, sites_table: WikidataSitesTable) -> None:
+        self._sites_table = sites_table
+        self._wdtk_sites: Optional[JObject] = None
 
-    def __init__(
-        self, sites_table: WikidataSitesTable, jvm_manager: JvmManager
-    ) -> None:
-        self._sites = sites_table.load_wdtk_object(jvm_manager)
-        self._property_register = self._get_property_register()
-        self._json_deserializer = self._get_json_deserializer()
+    def _load_wdtk_classes_and_objects(self, jvm_manager: JvmManager) -> None:
+        global _JAVA_BYTE_ARRAY_OUTPUT_STREAM
+        if _JAVA_BYTE_ARRAY_OUTPUT_STREAM is None:
+            _JAVA_BYTE_ARRAY_OUTPUT_STREAM = JClass("java.io.ByteArrayOutputStream")
 
-        JMwRevision = JClass("org.wikidata.wdtk.dumpfiles.MwRevision")  # noqa: N806
-        self._model_item = str(JMwRevision.MODEL_WIKIBASE_ITEM)
-        self._model_property = str(JMwRevision.MODEL_WIKIBASE_PROPERTY)
+        global _WDTK_RDF_CONVERTER
+        if _WDTK_RDF_CONVERTER is None:
+            _WDTK_RDF_CONVERTER = JClass("org.wikidata.wdtk.rdf.RdfConverter")
 
-        self._format_ntriples = JClass("org.eclipse.rdf4j.rio.RDFFormat").NTRIPLES
+        global _WDTK_RDF_WRITER
+        if _WDTK_RDF_WRITER is None:
+            _WDTK_RDF_WRITER = JClass("org.wikidata.wdtk.rdf.RdfWriter")
 
-        JRdfSerializer = JClass("org.wikidata.wdtk.rdf.RdfSerializer")  # noqa: N806
-        self._tasks = (
-            0x0
-            # Document terms
-            # TODO: document labels, descriptions, aliases
-            | JRdfSerializer.TASK_LABELS
-            | JRdfSerializer.TASK_DESCRIPTIONS
-            | JRdfSerializer.TASK_ALIASES
-            #
-            # Statements
-            # TODO: document that TASK_SIMPLE_STATEMENTS writes a "simple" statement
-            #  (i.e. not more complex stuff that would need reification to express and
-            #  that additionally it will only print statements of the "best" rank of
-            #  that particular statement group. (Not 100% sure what that means, but it
-            #  is atleast specific to that respective entity.)
-            | JRdfSerializer.TASK_SIMPLE_STATEMENTS
-            # TODO: document that this means "full" statements (i.e. with reification).
-            | JRdfSerializer.TASK_STATEMENTS
-            #
-            # Items
-            # TODO: Document item selector
-            | JRdfSerializer.TASK_ITEMS
-            # TODO: document that TASK_SITELINKS refers to links to Wikipedia articles.
-            | JRdfSerializer.TASK_SITELINKS
-            #
-            # Properties
-            # TODO: Document property selector
-            | JRdfSerializer.TASK_PROPERTIES
-            # TODO: not sure what this is (but it is only applicable to properties)
-            | JRdfSerializer.TASK_DATATYPES
-            # TODO: not sure what this is (but it is only applicable to properties)
-            | JRdfSerializer.TASK_PROPERTY_LINKS
+        global _WDTK_PROPERTY_REGISTER
+        if _WDTK_PROPERTY_REGISTER is None:
+            _WDTK_PROPERTY_REGISTER = JClass(
+                "org.wikidata.wdtk.rdf.PropertyRegister"
+            ).getWikidataPropertyRegister()
+
+        global _WDTK_NTRIPLES_FORMAT
+        if _WDTK_NTRIPLES_FORMAT is None:
+            _WDTK_NTRIPLES_FORMAT = JClass("org.eclipse.rdf4j.rio.RDFFormat").NTRIPLES
+
+        global _WDTK_ITEM_IRI
+        if _WDTK_ITEM_IRI is None:
+            _WDTK_ITEM_IRI = _WDTK_RDF_WRITER.WB_ITEM
+
+        global _WDTK_PROPERTY_IRI
+        if _WDTK_PROPERTY_IRI is None:
+            _WDTK_PROPERTY_IRI = _WDTK_RDF_WRITER.WB_PROPERTY
+
+        if self._wdtk_sites is None:
+            self._wdtk_sites = self._sites_table.load_wdtk_object(jvm_manager)
+
+    def process_revision(
+        self, revision: WikidataRevision, jvm_manager: JvmManager
+    ) -> Sequence[RdfTriple]:
+        self._load_wdtk_classes_and_objects(jvm_manager)
+
+        # Needed to pass mypy checks.
+        assert _JAVA_BYTE_ARRAY_OUTPUT_STREAM is not None
+        assert _WDTK_RDF_WRITER is not None
+        assert _WDTK_RDF_CONVERTER is not None
+
+        java_output_stream = _JAVA_BYTE_ARRAY_OUTPUT_STREAM()
+        wdtk_rdf_writer = _WDTK_RDF_WRITER(_WDTK_NTRIPLES_FORMAT, java_output_stream)
+        wdtk_rdf_writer.start()
+        wdtk_rdf_converter = _WDTK_RDF_CONVERTER(
+            wdtk_rdf_writer, self._wdtk_sites, _WDTK_PROPERTY_REGISTER
         )
-
-        # Keep references to Java classes here, so they do not have to be looked up
-        # when processing each revision individually.
-        self._JRdfConverter = JClass("org.wikidata.wdtk.rdf.RdfConverter")  # noqa: N806
-        self._JRdfWriter = JClass("org.wikidata.wdtk.rdf.RdfWriter")  # noqa: N806
-        self._JByteArrayOutputStream = JClass(  # noqa: N806
-            "java.io.ByteArrayOutputStream"
-        )
-
-    @classmethod
-    def _get_property_register(cls) -> JObject:
-        return JClass(
-            "org.wikidata.wdtk.rdf.PropertyRegister"
-        ).getWikidataPropertyRegister()
-
-    @classmethod
-    def _get_json_deserializer(cls) -> JObject:
-        return JClass("org.wikidata.wdtk.datamodel.helpers.JsonDeserializer")(
-            JClass("org.wikidata.wdtk.datamodel.helpers.Datamodel").SITE_WIKIDATA
-        )
-
-    def process_revision(self, revision: WikidataRevision) -> Sequence[RdfTriple]:
-        if revision.text is None:
-            raise WikidataRdfSerializationException("Entity has no text.", revision)
-
-        output_stream = self._JByteArrayOutputStream()
-
-        rdf_writer = self._JRdfWriter(self._format_ntriples, output_stream)
-        rdf_writer.start()
-
-        rdf_converter = self._JRdfConverter(
-            rdf_writer, self._sites, self._property_register
-        )
-        rdf_converter.setTasks(self._tasks)
 
         # The following two method calls are part of the Wikidata Toolkit's
         # RdfSerializer. They add RDF triples that are independent of the actual
         # revision being exported. Because of this, we do not call them here.
-        # rdf_converter.writeNamespaceDeclarations() # noqa: E800
-        # rdf_converter.writeBasicDeclarations() # noqa: E800
+        # wdtk_rdf_converter.writeNamespaceDeclarations() # noqa: E800
+        # wdtk_rdf_converter.writeBasicDeclarations() # noqa: E800
 
-        if '"redirect":' in revision.text:
+        wdtk_document = revision.load_wdtk_deserialization(jvm_manager)
+        wdtk_document_class = str(wdtk_document.getClass().getName())
+        wdtk_resource = wdtk_rdf_writer.getUri(wdtk_document.getEntityId().getIri())
+
+        if not (
+            wdtk_document_class == "ItemDocument"
+            or wdtk_document_class == "PropertyDocument"
+        ):
+            raise WikidataRdfSerializationException(
+                f"RDF serialization of {wdtk_document_class} not implemented.", revision
+            )
+
+        try:
+            if wdtk_document_class == "ItemDocument":
+                wdtk_rdf_converter.writeDocumentType(wdtk_resource, _WDTK_ITEM_IRI)
+                wdtk_rdf_converter.writeDocumentTerms(wdtk_document)
+                wdtk_rdf_converter.writeStatements(wdtk_document)
+                wdtk_rdf_converter.writeSiteLinks(
+                    wdtk_resource, wdtk_document.getSiteLinks()
+                )
+
+            elif wdtk_document_class == "PropertyDocument":
+                wdtk_rdf_converter.writeDocumentType(wdtk_resource, _WDTK_PROPERTY_IRI)
+                wdtk_rdf_converter.writePropertyDatatype(wdtk_document)
+                wdtk_rdf_converter.writeDocumentTerms(wdtk_document)
+                wdtk_rdf_converter.writeStatements(wdtk_document)
+                wdtk_rdf_converter.writeInterPropertyLinks(wdtk_document)
+
+            # TODO: Handle EntityRedirectDocument here?
             # TODO: document that revisions that contain the "redirect" field in their
             #  JSON indicate that the respective entity is being redirected to the
             #  target entity starting from that point in time. Additionally, if an
             #  entity is ever the source of a redirect all revisions of it will also
             #  carry the revision.redirect attribute indicating the target of the
             #  redirect, even if at that time the entity is not yet being redirect.
-            raise WikidataRdfSerializationException("Entity is redirected.", revision)
-
-        model = revision.content_model
-        if model != self._model_item and model != self._model_property:
-            # Lexemes, Wikitext pages (i.e., discussion pages), and others.
-            raise WikidataRdfSerializationException(
-                f"Entity model '{revision.content_model}' is not RDF-serializable.",
-                revision,
-            )
-
-        exception_msg = ""
-        try:
-            if model == self._model_item:
-                exception_msg = "Item could not be JSON-deserialized."
-                doc = self._json_deserializer.deserializeItemDocument(revision.text)
-                subject = rdf_writer.getUri(doc.getEntityId().getIri())
-
-                exception_msg = "Item could not be RDF-serialized."
-                # Taken from RdfConverter.writeItemDocument:
-                rdf_converter.writeDocumentType(subject, self._JRdfWriter.WB_ITEM)
-                rdf_converter.writeDocumentTerms(doc)
-                rdf_converter.writeStatements(doc)
-                rdf_converter.writeSiteLinks(subject, doc.getSiteLinks())
-
-            elif model == self._model_property:
-                exception_msg = "Property could not be JSON-deserialized."
-                doc = self._json_deserializer.deserializePropertyDocument(revision.text)
-                subject = rdf_writer.getUri(doc.getEntityId().getIri())
-
-                exception_msg = "Property could not be RDF-serialized."
-                # Taken from RdfConverter.writePropertyDocument:
-                rdf_converter.writeDocumentType(subject, self._JRdfWriter.WB_PROPERTY)
-                rdf_converter.writePropertyDatatype(doc)
-                rdf_converter.writeDocumentTerms(doc)
-                rdf_converter.writeStatements(doc)
-                rdf_converter.writeInterPropertyLinks(doc)
 
         except JException as exception:
-            raise WikidataRdfSerializationException(exception_msg, revision, exception)
+            raise WikidataRdfSerializationException(
+                "RDF serialization by Wikidata Toolkit failed.", revision, exception
+            )
 
         # The RdfConverter.finishDocument() method in Wikidata Toolkit is called from
         # both RdfConverter.writeItemDocument and RdfConverter.writePropertyDocument and
@@ -236,13 +213,13 @@ class WikidataRdfSerializer:
         # revisions themselves, but rather queried from the internet. Because of this
         # it is also does not change between revisions.  Because of this, we do not call
         # it here.
-        # rdf_converter.finishDocument() # noqa: E800
+        # wdtk_rdf_converter.finishDocument() # noqa: E800
 
-        rdf_writer.finish()
+        wdtk_rdf_writer.finish()
 
         return [
             RdfTriple(*map(self._prefix_ntriples_uri, line[: -len(" .")].split(" ", 2)))
-            for line in str(output_stream).splitlines()
+            for line in str(java_output_stream).splitlines()
         ]
 
     @classmethod
@@ -251,7 +228,7 @@ class WikidataRdfSerializer:
             return uri  # Argument is not an URI.
 
         uri = uri[1:-1]  # Remove brackets before and after URI.
-        for prefix, prefix_url in cls.PREFIXES.items():
+        for prefix, prefix_url in RDF_PREFIXES.items():
             if uri.startswith(prefix_url):
                 return prefix + ":" + uri[len(prefix_url) :]
         return "<" + uri + ">"

@@ -166,7 +166,7 @@ class WikidataExtractTripleOperations(Program):
         _JVM_MANAGER.set_java_logging_file_handler(
             triple_operation_dump_dir / "rdf-serialization.exceptions.log"
         )
-        rdf_serializer = WikidataRdfSerializer(sites_table, _JVM_MANAGER)
+        rdf_serializer = WikidataRdfSerializer(sites_table)
         rdf_serializer_exception_counter = Counter[str]()
 
         num_pages = 0
@@ -189,7 +189,9 @@ class WikidataExtractTripleOperations(Program):
                     num_revisions += 1
 
                     try:
-                        triples = rdf_serializer.process_revision(revision)
+                        triples = rdf_serializer.process_revision(
+                            revision, _JVM_MANAGER
+                        )
                     except WikidataRdfSerializationException as exception:
                         rdf_serializer_exception_counter[exception.reason] += 1
                         continue

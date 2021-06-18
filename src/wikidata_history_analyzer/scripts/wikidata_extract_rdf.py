@@ -97,9 +97,7 @@ class WikidataExtractRdf(Program):
         rdf_dir = get_wikidata_rdf_dir(settings.data_dir)
 
         with JvmManager(settings.wikidata_toolkit_jars_dir) as jvm_manager:
-            rdf_serializer = WikidataRdfSerializer(
-                dump_manager.sites_table(), jvm_manager
-            )
+            rdf_serializer = WikidataRdfSerializer(dump_manager.sites_table())
             rdf_serializer_exception_counter = Counter[str]()
 
             for revision in dump.iter_revisions():
@@ -111,7 +109,7 @@ class WikidataExtractRdf(Program):
                     continue
 
                 try:
-                    triples = rdf_serializer.process_revision(revision)
+                    triples = rdf_serializer.process_revision(revision, jvm_manager)
                 except WikidataRdfSerializationException as exception:
                     rdf_serializer_exception_counter[exception.reason] += 1
                     continue
