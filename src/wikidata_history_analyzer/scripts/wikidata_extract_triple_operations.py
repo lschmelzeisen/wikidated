@@ -41,6 +41,7 @@ from wikidata_history_analyzer.wikidata_rdf_serializer import (
     WikidataRdfSerializationException,
     WikidataRdfSerializer,
 )
+from wikidata_history_analyzer.wikidata_sites_table import WikidataSitesTable
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
@@ -91,7 +92,12 @@ class WikidataExtractTripleOperations(Program):
             progress_bars: MutableMapping[str, tqdm[None]] = {}
 
             futures_not_done = {
-                pool.submit(self._process_dump_file, meta_history_dump, progress_dict)
+                pool.submit(
+                    self._process_dump_file,
+                    meta_history_dump,
+                    dump_manager.sites_table(),
+                    progress_dict,
+                )
                 for meta_history_dump in dump_manager.meta_history_dumps()
             }
 
@@ -142,12 +148,13 @@ class WikidataExtractTripleOperations(Program):
     def _process_dump_file(
         self,
         dump: WikidataMetaHistoryDump,
+        sites_table: WikidataSitesTable,
         progress_dict: MutableMapping[str, Tuple[int, int]],
     ) -> None:
         assert _JVM_MANAGER is not None
 
         settings = self.settings.wikidata_history_analyzer
-        dump_dir = get_wikidata_dump_dir(settings.data_dir)
+        get_wikidata_dump_dir(settings.data_dir)
         triple_operation_dir = get_wikidata_triple_operation_dir(settings.data_dir)
         triple_operation_dump_dir = triple_operation_dir / dump.path.name
         triple_operation_dump_dir.mkdir(parents=True, exist_ok=True)
@@ -159,9 +166,7 @@ class WikidataExtractTripleOperations(Program):
         _JVM_MANAGER.set_java_logging_file_handler(
             triple_operation_dump_dir / "rdf-serialization.exceptions.log"
         )
-        rdf_serializer = WikidataRdfSerializer(
-            dump_dir / f"wikidatawiki-{settings.wikidata_dump_version}-sites.sql.gz"
-        )
+        rdf_serializer = WikidataRdfSerializer(sites_table, _JVM_MANAGER)
         rdf_serializer_exception_counter = Counter[str]()
 
         num_pages = 0

@@ -15,13 +15,14 @@
 #
 
 from logging import getLogger
-from pathlib import Path
 from typing import NamedTuple, Optional, Sequence
 
 from jpype import JClass, JException, JObject  # type: ignore
 from nasty_utils import ColoredBraceStyleAdapter
 
+from wikidata_history_analyzer.jvm_manager import JvmManager
 from wikidata_history_analyzer.wikidata_meta_history_dump import WikidataRevision
+from wikidata_history_analyzer.wikidata_sites_table import WikidataSitesTable
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
@@ -94,8 +95,10 @@ class WikidataRdfSerializer:
         "wdata": "http://www.wikidata.org/wiki/Special:EntityData/",
     }
 
-    def __init__(self, sites_file: Path) -> None:
-        self._sites = self._get_sites(sites_file)
+    def __init__(
+        self, sites_table: WikidataSitesTable, jvm_manager: JvmManager
+    ) -> None:
+        self._sites = sites_table.load_wdtk_object(jvm_manager)
         self._property_register = self._get_property_register()
         self._json_deserializer = self._get_json_deserializer()
 
@@ -146,13 +149,6 @@ class WikidataRdfSerializer:
         self._JByteArrayOutputStream = JClass(  # noqa: N806
             "java.io.ByteArrayOutputStream"
         )
-
-    @classmethod
-    def _get_sites(cls, file: Path) -> JObject:
-        dump = JClass("org.wikidata.wdtk.dumpfiles.MwLocalDumpFile")(str(file))
-        processor = JClass("org.wikidata.wdtk.dumpfiles.MwSitesDumpFileProcessor")()
-        processor.processDumpFileContents(dump.getDumpFileStream(), dump)
-        return processor.getSites()
 
     @classmethod
     def _get_property_register(cls) -> JObject:

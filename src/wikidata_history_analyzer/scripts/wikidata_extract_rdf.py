@@ -93,12 +93,12 @@ class WikidataExtractRdf(Program):
                 break
         assert dump is not None
 
-        dump_dir = get_wikidata_dump_dir(settings.data_dir)
+        get_wikidata_dump_dir(settings.data_dir)
         rdf_dir = get_wikidata_rdf_dir(settings.data_dir)
 
-        with JvmManager(settings.wikidata_toolkit_jars_dir):
+        with JvmManager(settings.wikidata_toolkit_jars_dir) as jvm_manager:
             rdf_serializer = WikidataRdfSerializer(
-                dump_dir / f"wikidatawiki-{settings.wikidata_dump_version}-sites.sql.gz"
+                dump_manager.sites_table(), jvm_manager
             )
             rdf_serializer_exception_counter = Counter[str]()
 
