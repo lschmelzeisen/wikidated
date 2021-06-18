@@ -20,14 +20,13 @@ from pathlib import Path
 from sys import argv
 from typing import Counter, Sequence, cast
 
-from jpype import shutdownJVM, startJVM  # type: ignore
 from nasty_utils import Argument, ColoredBraceStyleAdapter, Program, ProgramConfig
 from overrides import overrides
 from pydantic import validator
 
 import wikidata_history_analyzer
 from wikidata_history_analyzer._paths import get_wikidata_dump_dir, get_wikidata_rdf_dir
-from wikidata_history_analyzer.java_logging_bride import setup_java_logging_bridge
+from wikidata_history_analyzer.jvm_manager import JvmManager
 from wikidata_history_analyzer.settings_ import WikidataHistoryAnalyzerSettings
 from wikidata_history_analyzer.wikidata_dump_manager import WikidataDumpManager
 from wikidata_history_analyzer.wikidata_rdf_serializer import (
@@ -97,45 +96,41 @@ class WikidataExtractRdf(Program):
         dump_dir = get_wikidata_dump_dir(settings.data_dir)
         rdf_dir = get_wikidata_rdf_dir(settings.data_dir)
 
-        startJVM(classpath=[str(settings.wikidata_toolkit_jars_dir / "*")])
-        setup_java_logging_bridge()
-
-        rdf_serializer = WikidataRdfSerializer(
-            dump_dir / f"wikidatawiki-{settings.wikidata_dump_version}-sites.sql.gz"
-        )
-        rdf_serializer_exception_counter = Counter[str]()
-
-        for revision in dump.iter_revisions():
-            if not (
-                revision.prefixed_title in self.title_
-                or revision.page_id in self.page_id
-                or revision.revision_id in self.revision_id
-            ):
-                continue
-
-            try:
-                triples = rdf_serializer.process_revision(revision)
-            except WikidataRdfSerializationException as exception:
-                rdf_serializer_exception_counter[exception.reason] += 1
-                continue
-
-            revision_file = (
-                rdf_dir
-                / self.dump_file
-                / revision.prefixed_title
-                / (revision.revision_id + ".ttl")
+        with JvmManager(settings.wikidata_toolkit_jars_dir):
+            rdf_serializer = WikidataRdfSerializer(
+                dump_dir / f"wikidatawiki-{settings.wikidata_dump_version}-sites.sql.gz"
             )
-            revision_file.parent.mkdir(exist_ok=True, parents=True)
-            with revision_file.open("w", encoding="UTF-8") as fout:
-                for attr in dir(revision):
-                    if attr.startswith("_") or attr == "text":
-                        continue
-                    fout.write(f"# {attr}: {getattr(revision, attr)}\n")
-                fout.write("\n")
-                for triple in triples:
-                    fout.write(" ".join(triple) + " .\n")
+            rdf_serializer_exception_counter = Counter[str]()
 
-        shutdownJVM()
+            for revision in dump.iter_revisions():
+                if not (
+                    revision.prefixed_title in self.title_
+                    or revision.page_id in self.page_id
+                    or revision.revision_id in self.revision_id
+                ):
+                    continue
+
+                try:
+                    triples = rdf_serializer.process_revision(revision)
+                except WikidataRdfSerializationException as exception:
+                    rdf_serializer_exception_counter[exception.reason] += 1
+                    continue
+
+                revision_file = (
+                    rdf_dir
+                    / self.dump_file
+                    / revision.prefixed_title
+                    / (revision.revision_id + ".ttl")
+                )
+                revision_file.parent.mkdir(exist_ok=True, parents=True)
+                with revision_file.open("w", encoding="UTF-8") as fout:
+                    for attr in dir(revision):
+                        if attr.startswith("_") or attr == "text":
+                            continue
+                        fout.write(f"# {attr}: {getattr(revision, attr)}\n")
+                    fout.write("\n")
+                    for triple in triples:
+                        fout.write(" ".join(triple) + " .\n")
 
 
 def main(*args: str) -> None:

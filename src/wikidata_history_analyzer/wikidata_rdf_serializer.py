@@ -183,8 +183,8 @@ class WikidataRdfSerializer:
         # The following two method calls are part of the Wikidata Toolkit's
         # RdfSerializer. They add RDF triples that are independent of the actual
         # revision being exported. Because of this, we do not call them here.
-        # rdf_converter.writeNamespaceDeclarations()
-        # rdf_converter.writeBasicDeclarations()
+        # rdf_converter.writeNamespaceDeclarations() # noqa: E800
+        # rdf_converter.writeBasicDeclarations() # noqa: E800
 
         if '"redirect":' in revision.text:
             # TODO: document that revisions that contain the "redirect" field in their
@@ -239,7 +239,7 @@ class WikidataRdfSerializer:
         # revisions themselves, but rather queried from the internet. Because of this
         # it is also does not change between revisions.  Because of this, we do not call
         # it here.
-        # rdf_converter.finishDocument()
+        # rdf_converter.finishDocument() # noqa: E800
 
         rdf_writer.finish()
 

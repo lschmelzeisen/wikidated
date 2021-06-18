@@ -19,12 +19,10 @@ from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from itertools import groupby
 from logging import getLogger
 from multiprocessing import Manager
-from os import getpid
 from pathlib import Path
 from sys import argv
-from typing import Counter, MutableMapping, Tuple
+from typing import Counter, MutableMapping, Optional, Tuple
 
-from jpype import shutdownJVM, startJVM  # type: ignore
 from nasty_utils import Argument, ColoredBraceStyleAdapter, Program, ProgramConfig
 from overrides import overrides
 from tqdm import tqdm
@@ -34,10 +32,7 @@ from wikidata_history_analyzer._paths import (
     get_wikidata_dump_dir,
     get_wikidata_triple_operation_dir,
 )
-from wikidata_history_analyzer.java_logging_bride import (
-    set_java_logging_file_handler,
-    setup_java_logging_bridge,
-)
+from wikidata_history_analyzer.jvm_manager import JvmManager
 from wikidata_history_analyzer.settings_ import WikidataHistoryAnalyzerSettings
 from wikidata_history_analyzer.triple_operation_builder import TripleOperationBuilder
 from wikidata_history_analyzer.wikidata_dump_manager import WikidataDumpManager
@@ -52,6 +47,8 @@ from wikidata_history_analyzer.wikidata_rdf_serializer import (
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
 _UPDATE_FREQUENCY = 5  # Seconds
+
+_JVM_MANAGER: Optional[JvmManager] = None
 
 
 class WikidataExtractTripleOperations(Program):
@@ -79,7 +76,7 @@ class WikidataExtractTripleOperations(Program):
             max_workers=self.settings.wikidata_history_analyzer.num_workers,
             initializer=self._init_worker,
             initargs=(
-                self.settings.wikidata_history_analyzer.wikidata_toolkit_jars_dir / "*",
+                self.settings.wikidata_history_analyzer.wikidata_toolkit_jars_dir,
             ),
         ) as pool, tqdm(  # Progress bar for total progress.
             total=len(dump_manager.meta_history_7z_dumps()),
@@ -134,22 +131,25 @@ class WikidataExtractTripleOperations(Program):
                     break
 
     @classmethod
-    def _init_worker(cls, jvm_classpath: Path) -> None:
-        _LOGGER.info("Starting JVM in worker process {}...", getpid())
-        startJVM(classpath=[str(jvm_classpath)])
-        setup_java_logging_bridge()
+    def _init_worker(cls, jars_dir: Path) -> None:
+        global _JVM_MANAGER
+        _JVM_MANAGER = JvmManager(jars_dir)
         atexit.register(cls._exit_worker)
 
     @classmethod
     def _exit_worker(cls) -> None:
-        _LOGGER.info("Shutting down JVM in worker process {}...", getpid())
-        shutdownJVM()
+        global _JVM_MANAGER
+        assert _JVM_MANAGER is not None
+        _JVM_MANAGER.close()
+        _JVM_MANAGER = None
 
     def _process_dump_file(
         self,
         dump: WikidataMetaHistory7zDump,
         progress_dict: MutableMapping[str, Tuple[int, int]],
     ) -> None:
+        assert _JVM_MANAGER is not None
+
         settings = self.settings.wikidata_history_analyzer
         dump_dir = get_wikidata_dump_dir(settings.data_dir)
         triple_operation_dir = get_wikidata_triple_operation_dir(settings.data_dir)
@@ -160,7 +160,7 @@ class WikidataExtractTripleOperations(Program):
         max_pages = int(dump.max_page_id) - int(dump.min_page_id) + 1
         progress_dict[dump.path.name] = (0, max_pages)
 
-        set_java_logging_file_handler(
+        _JVM_MANAGER.set_java_logging_file_handler(
             triple_operation_dump_dir / "rdf-serialization.exceptions.log"
         )
         rdf_serializer = WikidataRdfSerializer(
@@ -204,7 +204,7 @@ class WikidataExtractTripleOperations(Program):
         # subprocesses progress bar in the main thread.
         progress_dict[dump.path.name] = (num_pages, num_pages)
 
-        set_java_logging_file_handler(None)
+        _JVM_MANAGER.set_java_logging_file_handler(None)
 
         with (triple_operation_dir / dump.path.name / "rdf-serialization.log").open(
             "w", encoding="UTF-8"
