@@ -32,6 +32,8 @@ from wikidata_history_analyzer.wikidata_dump_meta import (
     WikidataDumpStatus,
 )
 from wikidata_history_analyzer.wikidata_meta_history_dump import WikidataMetaHistoryDump
+from wikidata_history_analyzer.wikidata_namespaces import WikidataNamespaces
+from wikidata_history_analyzer.wikidata_page_table import WikidataPageTable
 from wikidata_history_analyzer.wikidata_sites_table import WikidataSitesTable
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
@@ -63,6 +65,18 @@ class WikidataDumpManager:
 
         return dump_status
 
+    def namespaces(self) -> WikidataNamespaces:
+        namespaces_files = self._dump_status.jobs["namespaces"].files
+        assert len(namespaces_files) == 1
+        path, dump_file = next(iter(namespaces_files.items()))
+        return WikidataNamespaces(self._dump_dir / path, dump_file)
+
+    def page_table(self) -> WikidataPageTable:
+        page_table_files = self._dump_status.jobs["pagetable"].files
+        assert len(page_table_files) == 1
+        path, dump_file = next(iter(page_table_files.items()))
+        return WikidataPageTable(self._dump_dir / path, dump_file)
+
     def sites_table(self) -> WikidataSitesTable:
         sites_tables_files = self._dump_status.jobs["sitestable"].files
         assert len(sites_tables_files) == 1
@@ -78,6 +92,8 @@ class WikidataDumpManager:
 
     def download_all(self) -> None:
         downloads = {}
+        downloads.update({d.path: d.dump_file for d in (self.namespaces(),)})
+        downloads.update({d.path: d.dump_file for d in (self.page_table(),)})
         downloads.update({d.path: d.dump_file for d in (self.sites_table(),)})
         downloads.update({d.path: d.dump_file for d in self.meta_history_dumps()})
 
