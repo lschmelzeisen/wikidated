@@ -30,12 +30,13 @@ from nasty_utils import ColoredBraceStyleAdapter
 from tqdm import tqdm
 
 from wikidata_history_analyzer._utils import p7z_open
+from wikidata_history_analyzer.wikidata_dump_meta import WikidataDumpFile
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
 
 @dataclass
-class WikidataDumpSiteInfo:
+class WikidataSiteInfo:
     site_name: str
     db_name: str
     base: str
@@ -45,7 +46,7 @@ class WikidataDumpSiteInfo:
 
 
 @dataclass
-class WikidataDumpRevision:
+class WikidataRevision:
     prefixed_title: str
     namespace: int
     page_id: str
@@ -71,45 +72,50 @@ class WikidataDumpInvalidFileException(Exception):
         )
 
 
-class WikidataDump:
+class WikidataMetaHistory7zDump:
     # Does not use an actual XML library for parsing the dumps content as we can make
     # some fairly strong assumptions about the XML used in the dump. Mainly we have that
     # each element starts/ends on it's own line and that we know the exact order of
     # elements occurring within each other. As such the code will need to be manually
     # updated to changes in the dump format but on the other hand is much faster.
 
-    def __init__(self, file: Path):
-        self._file = file
+    def __init__(self, path: Path, dump_file: WikidataDumpFile):
+        self.path = path
+        self.dump_file = dump_file
 
         match = re.match(
             r"^wikidatawiki-(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})-pages-meta-"
             r"history\d+.xml-p(?P<min_page_id>\d+)p(?P<max_page_id>\d+).7z$",
-            self._file.name,
+            self.path.name,
         )
         if not match:
-            raise WikidataDumpInvalidFileException(self._file)
+            raise WikidataDumpInvalidFileException(self.path)
         self.date_ = date(int(match["year"]), int(match["month"]), int(match["day"]))
         self.min_page_id = match["min_page_id"]
         self.max_page_id = match["max_page_id"]
 
-    def site_info(self) -> WikidataDumpSiteInfo:
-        with p7z_open(self._file, encoding="UTF-8") as fin:
+    def site_info(self) -> WikidataSiteInfo:
+        assert self.path.exists()
+
+        with p7z_open(self.path, encoding="UTF-8") as fin:
             lines = iter(cast(TextIO, fin))
             self._assert_opening_tag(next(lines), "mediawiki")
             return self._process_site_info(lines)
 
     def iter_revisions(
         self, display_progress_bar: bool = True
-    ) -> Iterator[WikidataDumpRevision]:
+    ) -> Iterator[WikidataRevision]:
+        assert self.path.exists()
+
         num_pages = int(self.max_page_id) - int(self.min_page_id) + 1
         progress_bar: Optional[tqdm[None]] = (
-            tqdm(desc=self._file.name, total=num_pages, dynamic_ncols=True)
+            tqdm(desc=self.path.name, total=num_pages, dynamic_ncols=True)
             if display_progress_bar
             else None
         )
 
         with p7z_open(
-            self._file, encoding="UTF-8"
+            self.path, encoding="UTF-8"
         ) as fin, progress_bar or nullcontext():
             lines = iter(cast(TextIO, fin))
             self._assert_opening_tag(next(lines), "mediawiki")
@@ -180,7 +186,7 @@ class WikidataDump:
         return "".join(value)
 
     @classmethod
-    def _process_site_info(cls, lines: Iterator[str]) -> WikidataDumpSiteInfo:
+    def _process_site_info(cls, lines: Iterator[str]) -> WikidataSiteInfo:
         cls._assert_opening_tag(next(lines), "siteinfo")
         site_name = cls._extract_value(next(lines), "sitename")
         db_name = cls._extract_value(next(lines), "dbname")
@@ -202,7 +208,7 @@ class WikidataDump:
                 namespaces[namespace_key] = cls._extract_value(line, "namespace")
         cls._assert_closing_tag(next(lines), "siteinfo")
 
-        return WikidataDumpSiteInfo(
+        return WikidataSiteInfo(
             site_name=site_name,
             db_name=db_name,
             base=base,
@@ -212,7 +218,7 @@ class WikidataDump:
         )
 
     @classmethod
-    def _process_page(cls, lines: Iterator[str]) -> Iterator[WikidataDumpRevision]:
+    def _process_page(cls, lines: Iterator[str]) -> Iterator[WikidataRevision]:
         cls._assert_opening_tag(next(lines), "page")
         prefixed_title = cls._unescape_xml(cls._extract_value(next(lines), "title"))
         namespace = int(cls._extract_value(next(lines), "ns"))
@@ -246,7 +252,7 @@ class WikidataDump:
         namespace: int,
         page_id: str,
         redirect: Optional[str],
-    ) -> WikidataDumpRevision:
+    ) -> WikidataRevision:
         cls._assert_opening_tag(next(lines), "revision")
         revision_id = cls._extract_value(next(lines), "id")
 
@@ -306,7 +312,7 @@ class WikidataDump:
 
         cls._assert_closing_tag(next(lines), "revision")
 
-        return WikidataDumpRevision(
+        return WikidataRevision(
             prefixed_title=prefixed_title,
             namespace=namespace,
             page_id=page_id,

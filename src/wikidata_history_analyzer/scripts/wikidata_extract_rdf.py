@@ -29,7 +29,7 @@ import wikidata_history_analyzer
 from wikidata_history_analyzer._paths import get_wikidata_dump_dir, get_wikidata_rdf_dir
 from wikidata_history_analyzer.java_logging_bride import setup_java_logging_bridge
 from wikidata_history_analyzer.settings_ import WikidataHistoryAnalyzerSettings
-from wikidata_history_analyzer.wikidata_dump import WikidataDump
+from wikidata_history_analyzer.wikidata_dump_manager import WikidataDumpManager
 from wikidata_history_analyzer.wikidata_rdf_serializer import (
     WikidataRdfSerializationException,
     WikidataRdfSerializer,
@@ -81,9 +81,21 @@ class WikidataExtractRdf(Program):
     @overrides
     def run(self) -> None:
         settings = self.settings.wikidata_history_analyzer
+
+        dump_manager = WikidataDumpManager(
+            settings.data_dir,
+            settings.wikidata_dump_version,
+            settings.wikidata_dump_mirror_base,
+        )
+        dump = None
+        for meta_history_7z_dump in dump_manager.meta_history_7z_dumps():
+            if meta_history_7z_dump.path.name == self.dump_file.name:
+                dump = meta_history_7z_dump
+                break
+        assert dump is not None
+
         dump_dir = get_wikidata_dump_dir(settings.data_dir)
         rdf_dir = get_wikidata_rdf_dir(settings.data_dir)
-        dump = WikidataDump(dump_dir / self.dump_file)
 
         startJVM(classpath=[str(settings.wikidata_toolkit_jars_dir / "*")])
         setup_java_logging_bridge()

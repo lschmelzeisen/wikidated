@@ -17,81 +17,26 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from logging import getLogger
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Sequence
 
 import requests
 from nasty_utils import ColoredBraceStyleAdapter, download_file_with_progressbar
-from pydantic import BaseModel as PydanticModel
-from pydantic import validator
 from tqdm import tqdm
 
 from wikidata_history_analyzer._paths import get_wikidata_dump_dir
 from wikidata_history_analyzer._utils import sha1sum
+from wikidata_history_analyzer.wikidata_dump_meta import (
+    WikidataDumpFile,
+    WikidataDumpStatus,
+)
+from wikidata_history_analyzer.wikidata_meta_history_7z_dump import (
+    WikidataMetaHistory7zDump,
+)
+from wikidata_history_analyzer.wikidata_sites_table import WikidataSitesTable
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
-
-
-class WikidataDumpFile(PydanticModel):
-    size: int
-    url: str
-    md5: str
-    sha1: str
-
-    def download(self, path: Path, dump_mirror: str) -> None:
-        if path.exists():
-            sha1 = sha1sum(path)
-            if sha1 != self.sha1:
-                raise Exception(
-                    "SHA-1 of already downloaded file did not match. "
-                    f"Expected '{self.sha1}', but received {sha1}'."
-                )
-            _LOGGER.debug("File '{}' already exists, skipping...", path.name)
-            return
-
-        path_tmp = path.parent / (path.name + ".tmp")
-        download_file_with_progressbar(
-            dump_mirror + self.url, path_tmp, description=path.name
-        )
-
-        sha1 = sha1sum(path_tmp)
-        if sha1 != self.sha1:
-            raise Exception(
-                "SHA-1 of file just downloaded did not match. "
-                f"Expected '{self.sha1}', but received {sha1}'."
-            )
-
-        path_tmp.rename(path)
-
-
-class WikidataDumpJob(PydanticModel):
-    status: str
-    updated: datetime
-    files: Mapping[str, WikidataDumpFile]
-
-    @classmethod
-    @validator("updated", pre=True)
-    def _parse_datetime(cls, value: str) -> datetime:
-        return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
-
-
-class WikidataDumpStatus(PydanticModel):
-    jobs: Mapping[str, WikidataDumpJob]
-    version: str
-
-
-class WikidataSitesTable:
-    def __init__(self, path: Path, dump_file: WikidataDumpFile):
-        self.path = path
-        self.dump_file = dump_file
-
-
-class WikidataMetaHistory7zDump:
-    def __init__(self, path: Path, dump_file: WikidataDumpFile):
-        self.path = path
-        self.dump_file = dump_file
 
 
 class WikidataDumpManager:
@@ -134,25 +79,46 @@ class WikidataDumpManager:
         ]
 
     def download_all(self) -> None:
-        sites_table = self.sites_table()
-        meta_history_7z_dumps = self.meta_history_7z_dumps()
-
-        paths = [sites_table.path] + [dump.path for dump in meta_history_7z_dumps]
-        dump_files = [sites_table.dump_file] + [
-            dump.dump_file for dump in meta_history_7z_dumps
-        ]
+        downloads = {}
+        downloads.update({d.path: d.dump_file for d in (self.sites_table(),)})
+        downloads.update({d.path: d.dump_file for d in self.meta_history_7z_dumps()})
 
         with tqdm(
-            total=len(dump_files), dynamic_ncols=True, position=1
+            total=len(downloads), dynamic_ncols=True, position=1
         ) as progress_bar_files, tqdm(
-            total=sum(dump_file.size for dump_file in dump_files),
+            total=sum(dump_file.size for dump_file in downloads.values()),
             dynamic_ncols=True,
             position=2,
             unit="B",
             unit_scale=True,
             unit_divisor=1024,
         ) as progress_bar_size:
-            for path, dump_file in zip(paths, dump_files):
-                dump_file.download(path, self._dump_mirror)
+            for path, dump_file in downloads.items():
+                self._download_dump_file(path, dump_file)
                 progress_bar_files.update(1)
                 progress_bar_size.update(dump_file.size)
+
+    def _download_dump_file(self, path: Path, dump_file: WikidataDumpFile) -> None:
+        if path.exists():
+            sha1 = sha1sum(path)
+            if sha1 != dump_file.sha1:
+                raise Exception(
+                    "SHA-1 of already downloaded file did not match. "
+                    f"Expected '{dump_file.sha1}', but received {sha1}'."
+                )
+            _LOGGER.debug("File '{}' already exists, skipping...", path.name)
+            return
+
+        path_tmp = path.parent / (path.name + ".tmp")
+        download_file_with_progressbar(
+            self._dump_mirror + dump_file.url, path_tmp, description=path.name
+        )
+
+        sha1 = sha1sum(path_tmp)
+        if sha1 != dump_file.sha1:
+            raise Exception(
+                "SHA-1 of file just downloaded did not match. "
+                f"Expected '{dump_file.sha1}', but received {sha1}'."
+            )
+
+        path_tmp.rename(path)

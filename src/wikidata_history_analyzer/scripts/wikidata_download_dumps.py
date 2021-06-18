@@ -41,12 +41,12 @@ class WikidataDownloadDumps(Program):
     def run(self) -> None:
         settings = self.settings.wikidata_history_analyzer
 
-        manager = WikidataDumpManager(
+        dump_manager = WikidataDumpManager(
             settings.data_dir,
             settings.wikidata_dump_version,
             settings.wikidata_dump_mirror_base,
         )
-        manager.download_all()
+        dump_manager.download_all()
 
 
 def main(*args: str) -> None:

@@ -40,7 +40,10 @@ from wikidata_history_analyzer.java_logging_bride import (
 )
 from wikidata_history_analyzer.settings_ import WikidataHistoryAnalyzerSettings
 from wikidata_history_analyzer.triple_operation_builder import TripleOperationBuilder
-from wikidata_history_analyzer.wikidata_dump import WikidataDump
+from wikidata_history_analyzer.wikidata_dump_manager import WikidataDumpManager
+from wikidata_history_analyzer.wikidata_meta_history_7z_dump import (
+    WikidataMetaHistory7zDump,
+)
 from wikidata_history_analyzer.wikidata_rdf_serializer import (
     WikidataRdfSerializationException,
     WikidataRdfSerializer,
@@ -63,23 +66,12 @@ class WikidataExtractTripleOperations(Program):
 
     @overrides
     def run(self) -> None:
-        dump_files = (
-            "wikidatawiki-20210401-pages-meta-history1.xml-p1000p1155.7z",
-            "wikidatawiki-20210401-pages-meta-history1.xml-p10733p14304.7z",
-            "wikidatawiki-20210401-pages-meta-history1.xml-p1156p1317.7z",
-            "wikidatawiki-20210401-pages-meta-history1.xml-p1318p1682.7z",
-            "wikidatawiki-20210401-pages-meta-history1.xml-p14305p18638.7z",
-            "wikidatawiki-20210401-pages-meta-history1.xml-p1683p3894.7z",
-            "wikidatawiki-20210401-pages-meta-history1.xml-p193p353.7z",
-            "wikidatawiki-20210401-pages-meta-history1.xml-p1p192.7z",
-            "wikidatawiki-20210401-pages-meta-history1.xml-p267210p283697.7z",
-            "wikidatawiki-20210401-pages-meta-history1.xml-p354p406.7z",
-            "wikidatawiki-20210401-pages-meta-history1.xml-p3895p7684.7z",
-            "wikidatawiki-20210401-pages-meta-history1.xml-p407p543.7z",
-            "wikidatawiki-20210401-pages-meta-history1.xml-p544p999.7z",
-            "wikidatawiki-20210401-pages-meta-history1.xml-p7685p10732.7z",
-            "wikidatawiki-20210401-pages-meta-history25.xml-p67174382p67502430.7z",
-            "wikidatawiki-20210401-pages-meta-history26.xml-p81385859p81615147.7z",
+        settings = self.settings.wikidata_history_analyzer
+
+        dump_manager = WikidataDumpManager(
+            settings.data_dir,
+            settings.wikidata_dump_version,
+            settings.wikidata_dump_mirror_base,
         )
 
         num_workers = self.settings.wikidata_history_analyzer.num_workers
@@ -90,7 +82,9 @@ class WikidataExtractTripleOperations(Program):
                 self.settings.wikidata_history_analyzer.wikidata_toolkit_jars_dir / "*",
             ),
         ) as pool, tqdm(  # Progress bar for total progress.
-            total=len(dump_files), dynamic_ncols=True, position=-num_workers
+            total=len(dump_manager.meta_history_7z_dumps()),
+            dynamic_ncols=True,
+            position=-num_workers,
         ) as progress_bar_overall, Manager() as manager:
             # The subprocesses use progress_dict to communicate their progress with the
             # main progress, which then updates the progress_bars accordingly.
@@ -102,8 +96,10 @@ class WikidataExtractTripleOperations(Program):
             progress_bars: MutableMapping[str, tqdm[None]] = {}
 
             futures_not_done = {
-                pool.submit(self._process_dump_file, Path(dump_file), progress_dict)
-                for dump_file in dump_files
+                pool.submit(
+                    self._process_dump_file, meta_history_7z_dump, progress_dict
+                )
+                for meta_history_7z_dump in dump_manager.meta_history_7z_dumps()
             }
 
             while True:
@@ -150,18 +146,19 @@ class WikidataExtractTripleOperations(Program):
         shutdownJVM()
 
     def _process_dump_file(
-        self, dump_file: Path, progress_dict: MutableMapping[str, Tuple[int, int]]
+        self,
+        dump: WikidataMetaHistory7zDump,
+        progress_dict: MutableMapping[str, Tuple[int, int]],
     ) -> None:
         settings = self.settings.wikidata_history_analyzer
         dump_dir = get_wikidata_dump_dir(settings.data_dir)
         triple_operation_dir = get_wikidata_triple_operation_dir(settings.data_dir)
-        triple_operation_dump_dir = triple_operation_dir / dump_file.name
+        triple_operation_dump_dir = triple_operation_dir / dump.path.name
         triple_operation_dump_dir.mkdir(parents=True, exist_ok=True)
-        dump = WikidataDump(dump_dir / dump_file)
 
         # Upper bound for the number of possible pages in a dump.
         max_pages = int(dump.max_page_id) - int(dump.min_page_id) + 1
-        progress_dict[dump_file.name] = (0, max_pages)
+        progress_dict[dump.path.name] = (0, max_pages)
 
         set_java_logging_file_handler(
             triple_operation_dump_dir / "rdf-serialization.exceptions.log"
@@ -200,16 +197,16 @@ class WikidataExtractTripleOperations(Program):
                         triples, revision.timestamp
                     )
 
-            progress_dict[dump_file.name] = (num_pages, max_pages)
+            progress_dict[dump.path.name] = (num_pages, max_pages)
 
         # Now we know how many pages where actually in the dump and can correct the
         # previous upper bound of max_pages. Also this will trigger closing this
         # subprocesses progress bar in the main thread.
-        progress_dict[dump_file.name] = (num_pages, num_pages)
+        progress_dict[dump.path.name] = (num_pages, num_pages)
 
         set_java_logging_file_handler(None)
 
-        with (triple_operation_dir / dump_file.name / "rdf-serialization.log").open(
+        with (triple_operation_dir / dump.path.name / "rdf-serialization.log").open(
             "w", encoding="UTF-8"
         ) as fout:
             fout.write(

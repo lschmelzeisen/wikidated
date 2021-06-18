@@ -21,7 +21,7 @@ from typing import NamedTuple, Optional, Sequence
 from jpype import JClass, JException, JObject  # type: ignore
 from nasty_utils import ColoredBraceStyleAdapter
 
-from wikidata_history_analyzer.wikidata_dump import WikidataDumpRevision
+from wikidata_history_analyzer.wikidata_meta_history_7z_dump import WikidataRevision
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
@@ -36,7 +36,7 @@ class WikidataRdfSerializationException(Exception):
     def __init__(
         self,
         reason: str,
-        revision: WikidataDumpRevision,
+        revision: WikidataRevision,
         exception: Optional[Exception] = None,
     ) -> None:
         self.reason = reason
@@ -166,7 +166,7 @@ class WikidataRdfSerializer:
             JClass("org.wikidata.wdtk.datamodel.helpers.Datamodel").SITE_WIKIDATA
         )
 
-    def process_revision(self, revision: WikidataDumpRevision) -> Sequence[RdfTriple]:
+    def process_revision(self, revision: WikidataRevision) -> Sequence[RdfTriple]:
         if revision.text is None:
             raise WikidataRdfSerializationException("Entity has no text.", revision)
 
