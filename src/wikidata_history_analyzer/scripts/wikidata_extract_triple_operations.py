@@ -22,7 +22,7 @@ from multiprocessing import Manager
 from os import getpid
 from pathlib import Path
 from sys import argv
-from typing import Counter, MutableMapping, Sequence, Tuple
+from typing import Counter, MutableMapping, Tuple
 
 from jpype import shutdownJVM, startJVM  # type: ignore
 from nasty_utils import Argument, ColoredBraceStyleAdapter, Program, ProgramConfig

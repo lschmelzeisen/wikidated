@@ -15,37 +15,22 @@
 #
 
 
-import atexit
-from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
-from itertools import groupby
 from logging import getLogger
-from multiprocessing import Manager
-from os import getpid
 from pathlib import Path
 from sys import argv
-from typing import Counter, MutableMapping, Optional, Sequence, Tuple, cast
+from typing import Counter, Sequence, cast
 
 from jpype import shutdownJVM, startJVM  # type: ignore
 from nasty_utils import Argument, ColoredBraceStyleAdapter, Program, ProgramConfig
 from overrides import overrides
 from pydantic import validator
-from tqdm import tqdm
 
 import wikidata_history_analyzer
-from wikidata_history_analyzer._paths import (
-    get_wikidata_dump_dir,
-    get_wikidata_rdf_dir,
-    get_wikidata_triple_operation_dir,
-)
-from wikidata_history_analyzer.java_logging_bride import (
-    set_java_logging_file_handler,
-    setup_java_logging_bridge,
-)
+from wikidata_history_analyzer._paths import get_wikidata_dump_dir, get_wikidata_rdf_dir
+from wikidata_history_analyzer.java_logging_bride import setup_java_logging_bridge
 from wikidata_history_analyzer.settings_ import WikidataHistoryAnalyzerSettings
-from wikidata_history_analyzer.triple_operation_builder import TripleOperationBuilder
 from wikidata_history_analyzer.wikidata_dump import WikidataDump
 from wikidata_history_analyzer.wikidata_rdf_serializer import (
-    RdfTriple,
     WikidataRdfSerializationException,
     WikidataRdfSerializer,
 )
@@ -86,9 +71,12 @@ class WikidataExtractRdf(Program):
         description="Target revision ID (separate multiple with commas).",
     )
 
+    @classmethod
     @validator("title_", "page_id", "revision_id", pre=True)
     def _split_at_comma(cls, value: object) -> Sequence[str]:
-        return value.split(",") if isinstance(value, str) else cast(Sequence, value)
+        return (
+            value.split(",") if isinstance(value, str) else cast(Sequence[str], value)
+        )
 
     @overrides
     def run(self) -> None:
