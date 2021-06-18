@@ -26,17 +26,17 @@ from wikidata_history_analyzer.wikidata_dump_meta import WikidataDumpFile
 
 @dataclass
 class WikidataPage:
-    id: str
-    namespace: int
     title: str
     prefixed_title: str
+    namespace: int
+    page_id: str
     restrictions: str  # TODO: Find out and document what this is.
     is_redirect: int  # TODO: Find out and document what this is.
     is_new: int  # TODO: Find out and document what this is.
     random: float  # TODO: Find out and document what this is.
     touched: datetime  # TODO: Find out and document what this is.
     links_updated: datetime  # TODO: Find out and document what this is.
-    latest: str  # ID of latest revision.
+    latest_revision_id: str
     len: int  # TODO: Find out and document what this is.
     content_model: str
     lang: str  # TODO: Find out and document what this is.
@@ -44,7 +44,6 @@ class WikidataPage:
     def __init__(
         self, match: re.Match[str], namespace_titles: Mapping[int, str]
     ) -> None:
-        self.id = match["id"]
         self.namespace = int(match["namespace"])
         self.title = match["title"]
         self.prefixed_title = (
@@ -52,13 +51,14 @@ class WikidataPage:
             if namespace_titles[self.namespace]
             else self.title
         )
+        self.page_id = match["page_id"]
         self.restrictions = match["restrictions"]
         self.is_redirect = int(match["is_redirect"])
         self.is_new = int(match["is_new"])
         self.random = float(match["random"])
         self.touched = datetime.strptime(match["touched"], "%Y%m%d%H%M%S")
         self.links_updated = datetime.strptime(match["links_updated"], "%Y%m%d%H%M%S")
-        self.latest = match["latest"]
+        self.latest_revision_id = match["latest_revision_id"]
         self.len = int(match["len"])
         self.content_model = match["content_model"]
         self.lang = match["lang"]
@@ -67,7 +67,7 @@ class WikidataPage:
 _PATTERN = re.compile(
     r"""
         \(
-            (?P<id>\d+),
+            (?P<page_id>\d+),
             (?P<namespace>\d+),
             '(?P<title>[^']+)',
             '(?P<restrictions>[^']*)',
@@ -76,7 +76,7 @@ _PATTERN = re.compile(
             (?P<random>\d.\d+),
             '(?P<touched>\d+)',
             '(?P<links_updated>\d+)',
-            (?P<latest>\d+),
+            (?P<latest_revision_id>\d+),
             (?P<len>\d+),
             '(?P<content_model>[^']*)',
             '?(?P<lang>[^')]*)'?

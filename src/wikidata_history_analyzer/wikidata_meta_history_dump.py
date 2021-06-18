@@ -31,6 +31,7 @@ from tqdm import tqdm
 
 from wikidata_history_analyzer._utils import p7z_open
 from wikidata_history_analyzer.wikidata_dump_meta import WikidataDumpFile
+from wikidata_history_analyzer.wikidata_revision import WikidataRevision
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
@@ -43,25 +44,6 @@ class WikidataSiteInfo:
     generator: str
     case: str
     namespaces: Mapping[int, str]
-
-
-@dataclass
-class WikidataRevision:
-    prefixed_title: str
-    namespace: int
-    page_id: str
-    redirect: Optional[str]
-    revision_id: str
-    parent_revision_id: Optional[str]
-    timestamp: datetime
-    contributor: Optional[str]
-    contributor_id: Optional[str]
-    is_minor: bool
-    comment: Optional[str]
-    model: str
-    format: str
-    text: Optional[str]
-    sha1: Optional[str]
 
 
 class WikidataDumpInvalidFileException(Exception):
@@ -103,7 +85,7 @@ class WikidataMetaHistoryDump:
             return self._process_site_info(lines)
 
     def iter_revisions(
-        self, display_progress_bar: bool = True
+        self, *, display_progress_bar: bool = True
     ) -> Iterator[WikidataRevision]:
         assert self.path.exists()
 
@@ -297,7 +279,7 @@ class WikidataMetaHistoryDump:
         else:
             lines = chain((line,), lines)
 
-        model = cls._extract_value(next(lines), "model")
+        content_model = cls._extract_value(next(lines), "model")
         format_ = cls._extract_value(next(lines), "format")
 
         text = cls._extract_value_multiline(lines, "text")
@@ -324,7 +306,7 @@ class WikidataMetaHistoryDump:
             contributor_id=contributor_id,
             is_minor=is_minor,
             comment=comment,
-            model=model,
+            content_model=content_model,
             format=format_,
             text=text,
             sha1=sha1,

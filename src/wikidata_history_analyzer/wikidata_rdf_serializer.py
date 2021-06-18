@@ -21,7 +21,7 @@ from jpype import JClass, JException, JObject  # type: ignore
 from nasty_utils import ColoredBraceStyleAdapter
 
 from wikidata_history_analyzer.jvm_manager import JvmManager
-from wikidata_history_analyzer.wikidata_meta_history_dump import WikidataRevision
+from wikidata_history_analyzer.wikidata_revision import WikidataRevision
 from wikidata_history_analyzer.wikidata_sites_table import WikidataSitesTable
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
@@ -191,11 +191,12 @@ class WikidataRdfSerializer:
             #  redirect, even if at that time the entity is not yet being redirect.
             raise WikidataRdfSerializationException("Entity is redirected.", revision)
 
-        model = revision.model
+        model = revision.content_model
         if model != self._model_item and model != self._model_property:
             # Lexemes, Wikitext pages (i.e., discussion pages), and others.
             raise WikidataRdfSerializationException(
-                f"Entity model '{revision.model}' is not RDF-serializable.", revision
+                f"Entity model '{revision.content_model}' is not RDF-serializable.",
+                revision,
             )
 
         exception_msg = ""
