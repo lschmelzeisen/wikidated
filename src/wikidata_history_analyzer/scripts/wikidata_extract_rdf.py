@@ -26,13 +26,17 @@ from pydantic import validator
 
 import wikidata_history_analyzer
 from wikidata_history_analyzer._paths import get_wikidata_rdf_dir
-from wikidata_history_analyzer.jvm_manager import JvmManager
-from wikidata_history_analyzer.settings_ import WikidataHistoryAnalyzerSettings
-from wikidata_history_analyzer.wikidata_dump_manager import WikidataDumpManager
-from wikidata_history_analyzer.wikidata_rdf_revision import WikidataRdfRevision
-from wikidata_history_analyzer.wikidata_revision import (
+from wikidata_history_analyzer.datamodel.wikidata_rdf_revision import (
+    WikidataRdfRevision,
+)
+from wikidata_history_analyzer.datamodel.wikidata_revision import (
     WikidataRevisionProcessingException,
 )
+from wikidata_history_analyzer.dumpfiles.wikidata_dump_manager import (
+    WikidataDumpManager,
+)
+from wikidata_history_analyzer.jvm_manager import JvmManager
+from wikidata_history_analyzer.settings_ import WikidataHistoryAnalyzerSettings
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 

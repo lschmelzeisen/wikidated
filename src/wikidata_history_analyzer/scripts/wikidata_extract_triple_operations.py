@@ -32,16 +32,22 @@ from wikidata_history_analyzer._paths import (
     get_wikidata_dump_dir,
     get_wikidata_triple_operation_dir,
 )
+from wikidata_history_analyzer.datamodel.wikidata_rdf_revision import (
+    WikidataRdfRevision,
+)
+from wikidata_history_analyzer.datamodel.wikidata_revision import (
+    WikidataRevisionProcessingException,
+)
+from wikidata_history_analyzer.dumpfiles.wikidata_dump_manager import (
+    WikidataDumpManager,
+)
+from wikidata_history_analyzer.dumpfiles.wikidata_meta_history_dump import (
+    WikidataMetaHistoryDump,
+)
+from wikidata_history_analyzer.dumpfiles.wikidata_sites_table import WikidataSitesTable
 from wikidata_history_analyzer.jvm_manager import JvmManager
 from wikidata_history_analyzer.settings_ import WikidataHistoryAnalyzerSettings
 from wikidata_history_analyzer.triple_operation_builder import TripleOperationBuilder
-from wikidata_history_analyzer.wikidata_dump_manager import WikidataDumpManager
-from wikidata_history_analyzer.wikidata_meta_history_dump import WikidataMetaHistoryDump
-from wikidata_history_analyzer.wikidata_rdf_revision import WikidataRdfRevision
-from wikidata_history_analyzer.wikidata_revision import (
-    WikidataRevisionProcessingException,
-)
-from wikidata_history_analyzer.wikidata_sites_table import WikidataSitesTable
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 

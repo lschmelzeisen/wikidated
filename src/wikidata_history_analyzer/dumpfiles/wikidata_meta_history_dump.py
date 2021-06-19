@@ -18,32 +18,22 @@ from __future__ import annotations
 
 import re
 from contextlib import nullcontext
-from dataclasses import dataclass
 from datetime import date, datetime
 from itertools import chain
 from logging import getLogger
 from pathlib import Path
-from typing import Iterator, Mapping, MutableMapping, Optional, TextIO, cast
+from typing import Iterator, MutableMapping, Optional, TextIO, cast
 from xml.sax.saxutils import unescape
 
 from nasty_utils import ColoredBraceStyleAdapter
 from tqdm import tqdm
 
 from wikidata_history_analyzer._utils import p7z_open
-from wikidata_history_analyzer.wikidata_dump import WikidataDump
-from wikidata_history_analyzer.wikidata_revision import WikidataRevision
+from wikidata_history_analyzer.datamodel.wikidata_revision import WikidataRevision
+from wikidata_history_analyzer.datamodel.wikidata_site_info import WikidataSiteInfo
+from wikidata_history_analyzer.dumpfiles.wikidata_dump import WikidataDump
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
-
-
-@dataclass
-class WikidataSiteInfo:
-    site_name: str
-    db_name: str
-    base: str
-    generator: str
-    case: str
-    namespaces: Mapping[int, str]
 
 
 class WikidataMetaHistoryDumpInvalidPathException(Exception):

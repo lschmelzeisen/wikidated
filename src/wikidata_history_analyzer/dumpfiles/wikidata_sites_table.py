@@ -18,8 +18,8 @@ from typing import Optional
 
 from jpype import JClass, JObject  # type: ignore
 
+from wikidata_history_analyzer.dumpfiles.wikidata_dump import WikidataDump
 from wikidata_history_analyzer.jvm_manager import JvmManager
-from wikidata_history_analyzer.wikidata_dump import WikidataDump
 
 
 class WikidataSitesTable(WikidataDump):

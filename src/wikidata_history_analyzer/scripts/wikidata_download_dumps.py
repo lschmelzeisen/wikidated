@@ -21,8 +21,10 @@ from nasty_utils import Argument, ColoredBraceStyleAdapter, Program, ProgramConf
 from overrides import overrides
 
 import wikidata_history_analyzer
+from wikidata_history_analyzer.dumpfiles.wikidata_dump_manager import (
+    WikidataDumpManager,
+)
 from wikidata_history_analyzer.settings_ import WikidataHistoryAnalyzerSettings
-from wikidata_history_analyzer.wikidata_dump_manager import WikidataDumpManager
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 

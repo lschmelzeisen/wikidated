@@ -23,12 +23,12 @@ from typing import ClassVar, Mapping, NamedTuple, Optional, Sequence
 from jpype import JClass, JException, JObject  # type: ignore
 from nasty_utils import ColoredBraceStyleAdapter
 
-from wikidata_history_analyzer.jvm_manager import JvmManager
-from wikidata_history_analyzer.wikidata_revision import (
+from wikidata_history_analyzer.datamodel.wikidata_revision import (
     WikidataRevision,
     WikidataRevisionProcessingException,
 )
-from wikidata_history_analyzer.wikidata_sites_table import WikidataSitesTable
+from wikidata_history_analyzer.dumpfiles.wikidata_sites_table import WikidataSitesTable
+from wikidata_history_analyzer.jvm_manager import JvmManager
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 

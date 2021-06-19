@@ -26,6 +26,8 @@ _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
 
 class WikidataDump:
+    # Base class for all types of Wikidata dump formats.
+
     def __init__(self, *, path: Path, url: str, sha1: str, size: int) -> None:
         self.path = path
         self.url = url

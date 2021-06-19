@@ -29,38 +29,17 @@ from pydantic import validator
 from tqdm import tqdm
 
 from wikidata_history_analyzer._paths import get_wikidata_dump_dir
-from wikidata_history_analyzer.wikidata_dump import WikidataDump
-from wikidata_history_analyzer.wikidata_meta_history_dump import WikidataMetaHistoryDump
-from wikidata_history_analyzer.wikidata_namespaces import WikidataNamespaces
-from wikidata_history_analyzer.wikidata_page_table import WikidataPageTable
-from wikidata_history_analyzer.wikidata_sites_table import WikidataSitesTable
+from wikidata_history_analyzer.dumpfiles.wikidata_dump import WikidataDump
+from wikidata_history_analyzer.dumpfiles.wikidata_meta_history_dump import (
+    WikidataMetaHistoryDump,
+)
+from wikidata_history_analyzer.dumpfiles.wikidata_namespaces import WikidataNamespaces
+from wikidata_history_analyzer.dumpfiles.wikidata_page_table import WikidataPageTable
+from wikidata_history_analyzer.dumpfiles.wikidata_sites_table import WikidataSitesTable
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
 _T_WikidataDump = TypeVar("_T_WikidataDump", bound=WikidataDump)
-
-
-class _WikidataDumpStatusFile(PydanticModel):
-    size: int
-    url: str
-    md5: str
-    sha1: str
-
-
-class _WikidataDumpStatusJob(PydanticModel):
-    status: str
-    updated: datetime
-    files: Mapping[str, _WikidataDumpStatusFile]
-
-    @classmethod
-    @validator("updated", pre=True)
-    def _parse_datetime(cls, value: str) -> datetime:
-        return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
-
-
-class _WikidataDumpStatus(PydanticModel):
-    jobs: Mapping[str, _WikidataDumpStatusJob]
-    version: str
 
 
 class WikidataDumpManager:
@@ -135,3 +114,26 @@ class WikidataDumpManager:
                 dump.download()
                 progress_bar_files.update(1)
                 progress_bar_size.update(dump.size)
+
+
+class _WikidataDumpStatusFile(PydanticModel):
+    size: int
+    url: str
+    md5: str
+    sha1: str
+
+
+class _WikidataDumpStatusJob(PydanticModel):
+    status: str
+    updated: datetime
+    files: Mapping[str, _WikidataDumpStatusFile]
+
+    @classmethod
+    @validator("updated", pre=True)
+    def _parse_datetime(cls, value: str) -> datetime:
+        return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+
+
+class _WikidataDumpStatus(PydanticModel):
+    jobs: Mapping[str, _WikidataDumpStatusJob]
+    version: str

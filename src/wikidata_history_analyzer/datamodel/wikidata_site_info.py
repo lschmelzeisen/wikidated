@@ -13,22 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-import gzip
-import json
-from typing import Any, Mapping
-
-from wikidata_history_analyzer.wikidata_dump import WikidataDump
+from dataclasses import dataclass
+from typing import Mapping
 
 
-class WikidataNamespaces(WikidataDump):
-    def load_namespace_titles(self) -> Mapping[int, str]:
-        assert self.path.exists()
-
-        with gzip.open(self.path, "rt", encoding="UTF-8") as fin:
-            obj: Any = json.load(fin)
-
-        return {
-            int(namespace["id"]): namespace["*"]
-            for namespace in obj["query"]["namespaces"].values()
-        }
+@dataclass
+class WikidataSiteInfo:
+    site_name: str
+    db_name: str
+    base: str
+    generator: str
+    case: str
+    namespaces: Mapping[int, str]

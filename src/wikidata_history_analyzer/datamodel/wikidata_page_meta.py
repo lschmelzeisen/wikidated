@@ -13,18 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-import gzip
-import re
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Iterator, Mapping, Match
-
-from wikidata_history_analyzer.wikidata_dump import WikidataDump
+from typing import Mapping, Match
 
 
 @dataclass
-class WikidataPage:
+class WikidataPageMeta:
     title: str
     prefixed_title: str
     namespace: int
@@ -59,45 +54,3 @@ class WikidataPage:
         self.len = int(match["len"])
         self.content_model = match["content_model"]
         self.lang = match["lang"]
-
-
-_PATTERN = re.compile(
-    r"""
-        \(
-            (?P<page_id>\d+),
-            (?P<namespace>\d+),
-            '(?P<title>[^']+)',
-            '(?P<restrictions>[^']*)',
-            (?P<is_redirect>\d+),
-            (?P<is_new>\d+),
-            (?P<random>\d.\d+),
-            '(?P<touched>\d+)',
-            '(?P<links_updated>\d+)',
-            (?P<latest_revision_id>\d+),
-            (?P<len>\d+),
-            '(?P<content_model>[^']*)',
-            '?(?P<lang>[^')]*)'?
-        \)
-    """,
-    re.VERBOSE,
-)
-
-
-class WikidataPageTable(WikidataDump):
-    def iter_pages(self, namespace_titles: Mapping[int, str]) -> Iterator[WikidataPage]:
-        assert self.path.exists()
-
-        insert_line_start = "INSERT INTO `page` VALUES "
-        insert_line_end = ";\n"
-
-        with gzip.open(self.path, "rt", encoding="UTF-8") as fin:
-            for line in fin:
-                if not (
-                    line.startswith(insert_line_start)
-                    and line.endswith(insert_line_end)
-                ):
-                    continue
-
-                line = line[len(insert_line_start) : -len(insert_line_end)]
-                for match in _PATTERN.finditer(line):
-                    yield WikidataPage(match, namespace_titles)
