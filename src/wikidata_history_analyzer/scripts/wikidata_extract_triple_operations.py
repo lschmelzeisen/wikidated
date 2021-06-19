@@ -189,9 +189,7 @@ class WikidataExtractTripleOperations(Program):
                     num_revisions += 1
 
                     try:
-                        triples = rdf_serializer.process_revision(
-                            revision, _JVM_MANAGER
-                        )
+                        triples = rdf_serializer(revision, _JVM_MANAGER)
                     except WikidataRdfSerializationException as exception:
                         rdf_serializer_exception_counter[exception.reason] += 1
                         continue

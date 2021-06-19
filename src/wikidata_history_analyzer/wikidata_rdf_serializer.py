@@ -142,7 +142,7 @@ class WikidataRdfSerializer:
         if self._wdtk_sites is None:
             self._wdtk_sites = self._sites_table.load_wdtk_object(jvm_manager)
 
-    def process_revision(
+    def __call__(
         self, revision: WikidataRevision, jvm_manager: JvmManager
     ) -> Sequence[RdfTriple]:
         self._load_wdtk_classes_and_objects(jvm_manager)

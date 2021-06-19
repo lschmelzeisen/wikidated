@@ -18,10 +18,9 @@ import gzip
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
-from typing import Iterator, Mapping
+from typing import Iterator, Mapping, Match
 
-from wikidata_history_analyzer.wikidata_dump_meta import WikidataDumpFile
+from wikidata_history_analyzer.wikidata_dump import WikidataDump
 
 
 @dataclass
@@ -41,9 +40,7 @@ class WikidataPage:
     content_model: str
     lang: str  # TODO: Find out and document what this is.
 
-    def __init__(
-        self, match: re.Match[str], namespace_titles: Mapping[int, str]
-    ) -> None:
+    def __init__(self, match: Match[str], namespace_titles: Mapping[int, str]) -> None:
         self.namespace = int(match["namespace"])
         self.title = match["title"]
         self.prefixed_title = (
@@ -86,11 +83,7 @@ _PATTERN = re.compile(
 )
 
 
-class WikidataPageTable:
-    def __init__(self, path: Path, dump_file: WikidataDumpFile):
-        self.path = path
-        self.dump_file = dump_file
-
+class WikidataPageTable(WikidataDump):
     def iter_pages(self, namespace_titles: Mapping[int, str]) -> Iterator[WikidataPage]:
         assert self.path.exists()
 

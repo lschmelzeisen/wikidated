@@ -14,19 +14,13 @@
 # limitations under the License.
 #
 
-from pathlib import Path
-
 from jpype import JClass, JObject  # type: ignore
 
 from wikidata_history_analyzer.jvm_manager import JvmManager
-from wikidata_history_analyzer.wikidata_dump_meta import WikidataDumpFile
+from wikidata_history_analyzer.wikidata_dump import WikidataDump
 
 
-class WikidataSitesTable:
-    def __init__(self, path: Path, dump_file: WikidataDumpFile):
-        self.path = path
-        self.dump_file = dump_file
-
+class WikidataSitesTable(WikidataDump):
     def load_wdtk_object(self, _jvm_manager: JvmManager) -> JObject:
         assert self.path.exists()
         dump = JClass("org.wikidata.wdtk.dumpfiles.MwLocalDumpFile")(str(self.path))

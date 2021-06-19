@@ -16,17 +16,12 @@
 
 import gzip
 import json
-from pathlib import Path
 from typing import Any, Mapping
 
-from wikidata_history_analyzer.wikidata_dump_meta import WikidataDumpFile
+from wikidata_history_analyzer.wikidata_dump import WikidataDump
 
 
-class WikidataNamespaces:
-    def __init__(self, path: Path, dump_file: WikidataDumpFile):
-        self.path = path
-        self.dump_file = dump_file
-
+class WikidataNamespaces(WikidataDump):
     def load_namespace_titles(self) -> Mapping[int, str]:
         assert self.path.exists()
 

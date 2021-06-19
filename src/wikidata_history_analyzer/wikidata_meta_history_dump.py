@@ -30,7 +30,7 @@ from nasty_utils import ColoredBraceStyleAdapter
 from tqdm import tqdm
 
 from wikidata_history_analyzer._utils import p7z_open
-from wikidata_history_analyzer.wikidata_dump_meta import WikidataDumpFile
+from wikidata_history_analyzer.wikidata_dump import WikidataDump
 from wikidata_history_analyzer.wikidata_revision import WikidataRevision
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
@@ -54,16 +54,15 @@ class WikidataDumpInvalidFileException(Exception):
         )
 
 
-class WikidataMetaHistoryDump:
+class WikidataMetaHistoryDump(WikidataDump):
     # Does not use an actual XML library for parsing the dumps content as we can make
     # some fairly strong assumptions about the XML used in the dump. Mainly we have that
     # each element starts/ends on it's own line and that we know the exact order of
     # elements occurring within each other. As such the code will need to be manually
     # updated to changes in the dump format but on the other hand is much faster.
 
-    def __init__(self, path: Path, dump_file: WikidataDumpFile):
-        self.path = path
-        self.dump_file = dump_file
+    def __init__(self, *, path: Path, url: str, sha1: str, size: int) -> None:
+        super().__init__(path=path, url=url, sha1=sha1, size=size)
 
         match = re.match(
             r"^wikidatawiki-(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})-pages-meta-"
