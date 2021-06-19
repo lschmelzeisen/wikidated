@@ -14,6 +14,8 @@
 # limitations under the License.
 #
 
+from typing import Optional
+
 from jpype import JClass, JObject  # type: ignore
 
 from wikidata_history_analyzer.jvm_manager import JvmManager
@@ -21,9 +23,15 @@ from wikidata_history_analyzer.wikidata_dump import WikidataDump
 
 
 class WikidataSitesTable(WikidataDump):
+    _wdtk_object: Optional[JObject] = None
+
     def load_wdtk_object(self, _jvm_manager: JvmManager) -> JObject:
         assert self.path.exists()
-        dump = JClass("org.wikidata.wdtk.dumpfiles.MwLocalDumpFile")(str(self.path))
-        processor = JClass("org.wikidata.wdtk.dumpfiles.MwSitesDumpFileProcessor")()
-        processor.processDumpFileContents(dump.getDumpFileStream(), dump)
-        return processor.getSites()
+
+        if self._wdtk_object is None:
+            dump = JClass("org.wikidata.wdtk.dumpfiles.MwLocalDumpFile")(str(self.path))
+            processor = JClass("org.wikidata.wdtk.dumpfiles.MwSitesDumpFileProcessor")()
+            processor.processDumpFileContents(dump.getDumpFileStream(), dump)
+            self._wdtk_object = processor.getSites()
+
+        return self._wdtk_object

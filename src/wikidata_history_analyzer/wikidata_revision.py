@@ -24,10 +24,8 @@ from jpype import JClass, JException, JObject  # type: ignore
 
 from wikidata_history_analyzer.jvm_manager import JvmManager
 
-_WDTK_JSON_SERIALIZER: Optional[JObject] = None
 
-
-class WikidataRevisionDeserializationException(Exception):
+class WikidataRevisionProcessingException(Exception):
     def __init__(
         self,
         reason: str,
@@ -43,6 +41,10 @@ class WikidataRevisionDeserializationException(Exception):
             f"{self.reason} ({self.revision.prefixed_title}, "
             f"page: {self.revision.page_id}, revision: {self.revision.revision_id})"
         )
+
+
+class WikidataRevisionWdtkDeserializationException(WikidataRevisionProcessingException):
+    pass
 
 
 @dataclass
@@ -63,18 +65,16 @@ class WikidataRevision:
     text: Optional[str]
     sha1: Optional[str]
 
-    def load_wdtk_deserialization(self, _jvm_manager: JvmManager) -> JObject:
-        global _WDTK_JSON_SERIALIZER
-        if _WDTK_JSON_SERIALIZER is None:
-            _WDTK_JSON_SERIALIZER = JClass(
-                "org.wikidata.wdtk.datamodel.helpers.JsonDeserializer"
-            )(JClass("org.wikidata.wdtk.datamodel.helpers.Datamodel").SITE_WIKIDATA)
-
+    def load_wdtk_deserialization(self, jvm_manager: JvmManager) -> JObject:
         if self.text is None:
-            raise WikidataRevisionDeserializationException("Entity has no text.", self)
+            raise WikidataRevisionWdtkDeserializationException(
+                "Entity has no text.", self
+            )
+
+        _load_wdtk_classes_and_objects(jvm_manager)
+        assert _WDTK_JSON_SERIALIZER is not None  # for mypy.
 
         # The following is based on WDTK's WikibaseRevisionProcessor.
-
         try:
             if '"redirect":' in self.text:
                 return _WDTK_JSON_SERIALIZER.deserializeEntityRedirectDocument(
@@ -97,6 +97,17 @@ class WikidataRevision:
                 return _WDTK_JSON_SERIALIZER.deserializeEntityDocument(self.text)
 
         except JException as exception:
-            raise WikidataRevisionDeserializationException(
+            raise WikidataRevisionWdtkDeserializationException(
                 "JSON deserialization by Wikidata Toolkit failed.", self, exception
             )
+
+
+def _load_wdtk_classes_and_objects(_jvm_manager: JvmManager) -> None:
+    global _WDTK_JSON_SERIALIZER
+    if _WDTK_JSON_SERIALIZER is None:
+        _WDTK_JSON_SERIALIZER = JClass(
+            "org.wikidata.wdtk.datamodel.helpers.JsonDeserializer"
+        )(JClass("org.wikidata.wdtk.datamodel.helpers.Datamodel").SITE_WIKIDATA)
+
+
+_WDTK_JSON_SERIALIZER: Optional[JObject] = None

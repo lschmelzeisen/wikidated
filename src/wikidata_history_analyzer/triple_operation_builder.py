@@ -25,7 +25,7 @@ from typing import IO, NamedTuple, Optional, Sequence, Set, Type
 
 from nasty_utils import ColoredBraceStyleAdapter
 
-from wikidata_history_analyzer.wikidata_rdf_serializer import RdfTriple
+from wikidata_history_analyzer.wikidata_rdf_revision import WikidataRdfTriple
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
@@ -72,10 +72,10 @@ class TripleOperationBuilder:
         self._file = file
         self._file_tmp = self._file.parent / (self._file.name + ".tmp")
         self._file_handle: Optional[IO[str]] = None
-        self._state: Set[RdfTriple] = set()
+        self._state: Set[WikidataRdfTriple] = set()
 
     def process_triples(
-        self, triples: Sequence[RdfTriple], timestamp: datetime
+        self, triples: Sequence[WikidataRdfTriple], timestamp: datetime
     ) -> None:
 
         triples_set = set(triples)

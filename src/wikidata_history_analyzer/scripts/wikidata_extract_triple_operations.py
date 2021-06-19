@@ -37,9 +37,9 @@ from wikidata_history_analyzer.settings_ import WikidataHistoryAnalyzerSettings
 from wikidata_history_analyzer.triple_operation_builder import TripleOperationBuilder
 from wikidata_history_analyzer.wikidata_dump_manager import WikidataDumpManager
 from wikidata_history_analyzer.wikidata_meta_history_dump import WikidataMetaHistoryDump
-from wikidata_history_analyzer.wikidata_rdf_serializer import (
-    WikidataRdfSerializationException,
-    WikidataRdfSerializer,
+from wikidata_history_analyzer.wikidata_rdf_revision import WikidataRdfRevision
+from wikidata_history_analyzer.wikidata_revision import (
+    WikidataRevisionProcessingException,
 )
 from wikidata_history_analyzer.wikidata_sites_table import WikidataSitesTable
 
@@ -166,8 +166,7 @@ class WikidataExtractTripleOperations(Program):
         _JVM_MANAGER.set_java_logging_file_handler(
             triple_operation_dump_dir / "rdf-serialization.exceptions.log"
         )
-        rdf_serializer = WikidataRdfSerializer(sites_table)
-        rdf_serializer_exception_counter = Counter[str]()
+        exception_counter = Counter[str]()
 
         num_pages = 0
         num_revisions = 0
@@ -189,13 +188,15 @@ class WikidataExtractTripleOperations(Program):
                     num_revisions += 1
 
                     try:
-                        triples = rdf_serializer(revision, _JVM_MANAGER)
-                    except WikidataRdfSerializationException as exception:
-                        rdf_serializer_exception_counter[exception.reason] += 1
+                        rdf_revision = WikidataRdfRevision.from_revision(
+                            revision, sites_table, _JVM_MANAGER
+                        )
+                    except WikidataRevisionProcessingException as exception:
+                        exception_counter[exception.reason] += 1
                         continue
 
                     triple_operation_builder.process_triples(
-                        triples, revision.timestamp
+                        rdf_revision.triples, revision.timestamp
                     )
 
             progress_dict[dump.path.name] = (num_pages, max_pages)
@@ -214,7 +215,7 @@ class WikidataExtractTripleOperations(Program):
                 "Exceptions occurred when RDF-serializing "
                 f"(out of {num_revisions} revisions):\n"
             )
-            for reason, count in rdf_serializer_exception_counter.most_common():
+            for reason, count in exception_counter.most_common():
                 fout.write(f"  {reason} ({count})\n")
 
 

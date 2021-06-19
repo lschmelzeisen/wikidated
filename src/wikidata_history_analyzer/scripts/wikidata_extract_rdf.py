@@ -25,13 +25,13 @@ from overrides import overrides
 from pydantic import validator
 
 import wikidata_history_analyzer
-from wikidata_history_analyzer._paths import get_wikidata_dump_dir, get_wikidata_rdf_dir
+from wikidata_history_analyzer._paths import get_wikidata_rdf_dir
 from wikidata_history_analyzer.jvm_manager import JvmManager
 from wikidata_history_analyzer.settings_ import WikidataHistoryAnalyzerSettings
 from wikidata_history_analyzer.wikidata_dump_manager import WikidataDumpManager
-from wikidata_history_analyzer.wikidata_rdf_serializer import (
-    WikidataRdfSerializationException,
-    WikidataRdfSerializer,
+from wikidata_history_analyzer.wikidata_rdf_revision import WikidataRdfRevision
+from wikidata_history_analyzer.wikidata_revision import (
+    WikidataRevisionProcessingException,
 )
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
@@ -93,12 +93,11 @@ class WikidataExtractRdf(Program):
                 break
         assert dump is not None
 
-        get_wikidata_dump_dir(settings.data_dir)
         rdf_dir = get_wikidata_rdf_dir(settings.data_dir)
 
         with JvmManager(settings.wikidata_toolkit_jars_dir) as jvm_manager:
-            rdf_serializer = WikidataRdfSerializer(dump_manager.sites_table())
-            rdf_serializer_exception_counter = Counter[str]()
+            sites_table = dump_manager.sites_table()
+            exception_counter = Counter[str]()
 
             for revision in dump.iter_revisions():
                 if not (
@@ -109,9 +108,11 @@ class WikidataExtractRdf(Program):
                     continue
 
                 try:
-                    triples = rdf_serializer(revision, jvm_manager)
-                except WikidataRdfSerializationException as exception:
-                    rdf_serializer_exception_counter[exception.reason] += 1
+                    rdf_revision = WikidataRdfRevision.from_revision(
+                        revision, sites_table, jvm_manager
+                    )
+                except WikidataRevisionProcessingException as exception:
+                    exception_counter[exception.reason] += 1
                     continue
 
                 revision_file = (
@@ -127,7 +128,7 @@ class WikidataExtractRdf(Program):
                             continue
                         fout.write(f"# {attr}: {getattr(revision, attr)}\n")
                     fout.write("\n")
-                    for triple in triples:
+                    for triple in rdf_revision.triples:
                         fout.write(" ".join(triple) + " .\n")
 
 

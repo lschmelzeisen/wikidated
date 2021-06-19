@@ -46,11 +46,11 @@ class WikidataSiteInfo:
     namespaces: Mapping[int, str]
 
 
-class WikidataDumpInvalidFileException(Exception):
-    def __init__(self, file: Path):
+class WikidataMetaHistoryDumpInvalidPathException(Exception):
+    def __init__(self, path: Path):
         super().__init__(
-            f"File '{file.name}' is not a Wikidata pages-meta-history dump file (based "
-            f"on file name). Full path: '{file}'."
+            f"File '{path.name}' is not a Wikidata pages-meta-history dump file (based "
+            f"on file name). Full path: '{path}'."
         )
 
 
@@ -70,7 +70,7 @@ class WikidataMetaHistoryDump(WikidataDump):
             self.path.name,
         )
         if not match:
-            raise WikidataDumpInvalidFileException(self.path)
+            raise WikidataMetaHistoryDumpInvalidPathException(self.path)
         self.date_ = date(int(match["year"]), int(match["month"]), int(match["day"]))
         self.min_page_id = match["min_page_id"]
         self.max_page_id = match["max_page_id"]
