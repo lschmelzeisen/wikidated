@@ -101,12 +101,12 @@ class WikidataRevision(PydanticModel):
             )
 
 
+_WDTK_JSON_SERIALIZER: Optional[JObject] = None
+
+
 def _load_wdtk_classes_and_objects(_jvm_manager: JvmManager) -> None:
     global _WDTK_JSON_SERIALIZER
     if _WDTK_JSON_SERIALIZER is None:
         _WDTK_JSON_SERIALIZER = JClass(
             "org.wikidata.wdtk.datamodel.helpers.JsonDeserializer"
         )(JClass("org.wikidata.wdtk.datamodel.helpers.Datamodel").SITE_WIKIDATA)
-
-
-_WDTK_JSON_SERIALIZER: Optional[JObject] = None
