@@ -16,11 +16,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
 from jpype import JClass, JException, JObject  # type: ignore
+from pydantic import BaseModel as PydanticModel
 
 from wikidata_history_analyzer.jvm_manager import JvmManager
 
@@ -47,8 +47,7 @@ class WikidataRevisionWdtkDeserializationException(WikidataRevisionProcessingExc
     pass
 
 
-@dataclass
-class WikidataRevision:
+class WikidataRevision(PydanticModel):
     prefixed_title: str
     namespace: int
     page_id: str

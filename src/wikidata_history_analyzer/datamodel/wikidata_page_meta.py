@@ -13,13 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from dataclasses import dataclass
+
 from datetime import datetime
-from typing import Mapping, Match
+
+from pydantic import BaseModel as PydanticModel
 
 
-@dataclass
-class WikidataPageMeta:
+class WikidataPageMeta(PydanticModel):
     title: str
     prefixed_title: str
     namespace: int
@@ -34,23 +34,3 @@ class WikidataPageMeta:
     len: int  # TODO: Find out and document what this is.
     content_model: str
     lang: str  # TODO: Find out and document what this is.
-
-    def __init__(self, match: Match[str], namespace_titles: Mapping[int, str]) -> None:
-        self.namespace = int(match["namespace"])
-        self.title = match["title"]
-        self.prefixed_title = (
-            namespace_titles[self.namespace] + ":" + self.title
-            if namespace_titles[self.namespace]
-            else self.title
-        )
-        self.page_id = match["page_id"]
-        self.restrictions = match["restrictions"]
-        self.is_redirect = int(match["is_redirect"])
-        self.is_new = int(match["is_new"])
-        self.random = float(match["random"])
-        self.touched = datetime.strptime(match["touched"], "%Y%m%d%H%M%S")
-        self.links_updated = datetime.strptime(match["links_updated"], "%Y%m%d%H%M%S")
-        self.latest_revision_id = match["latest_revision_id"]
-        self.len = int(match["len"])
-        self.content_model = match["content_model"]
-        self.lang = match["lang"]

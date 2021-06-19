@@ -179,7 +179,7 @@ class WikidataMetaHistoryDump(WikidataDump):
                 namespaces[namespace_key] = cls._extract_value(line, "namespace")
         cls._assert_closing_tag(next(lines), "siteinfo")
 
-        return WikidataSiteInfo(
+        return WikidataSiteInfo.construct(
             site_name=site_name,
             db_name=db_name,
             base=base,
@@ -283,7 +283,7 @@ class WikidataMetaHistoryDump(WikidataDump):
 
         cls._assert_closing_tag(next(lines), "revision")
 
-        return WikidataRevision(
+        return WikidataRevision.construct(
             prefixed_title=prefixed_title,
             namespace=namespace,
             page_id=page_id,

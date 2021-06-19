@@ -16,6 +16,7 @@
 
 import gzip
 import re
+from datetime import datetime
 from typing import Iterator, Mapping
 
 from wikidata_history_analyzer.datamodel.wikidata_page_meta import WikidataPageMeta
@@ -62,4 +63,28 @@ class WikidataPageTable(WikidataDump):
 
                 line = line[len(insert_line_start) : -len(insert_line_end)]
                 for match in _PATTERN.finditer(line):
-                    yield WikidataPageMeta(match, namespace_titles)
+                    namespace = int(match["namespace"])
+                    title = match["title"]
+
+                    yield WikidataPageMeta.construct(
+                        namespace=namespace,
+                        title=title,
+                        prefixed_title=(
+                            namespace_titles[namespace] + ":" + title
+                            if namespace_titles[namespace]
+                            else title
+                        ),
+                        page_id=match["page_id"],
+                        restrictions=match["restrictions"],
+                        is_redirect=int(match["is_redirect"]),
+                        is_new=int(match["is_new"]),
+                        random=float(match["random"]),
+                        touched=datetime.strptime(match["touched"], "%Y%m%d%H%M%S"),
+                        links_updated=datetime.strptime(
+                            match["links_updated"], "%Y%m%d%H%M%S"
+                        ),
+                        latest_revision_id=match["latest_revision_id"],
+                        len=int(match["len"]),
+                        content_model=match["content_model"],
+                        lang=match["lang"],
+                    )

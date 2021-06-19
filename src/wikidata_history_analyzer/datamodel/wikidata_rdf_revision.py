@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
 from logging import getLogger
 from typing import ClassVar, Mapping, NamedTuple, Optional, Sequence
 
@@ -45,7 +44,6 @@ class WikidataRdfTriple(NamedTuple):
     object: str
 
 
-@dataclass
 class WikidataRdfRevision(WikidataRevision):
     # Prefixes taken from
     # https://www.mediawiki.org/w/index.php?title=Wikibase/Indexing/RDF_Dump_Format&oldid=4471307#Full_list_of_prefixes
@@ -173,8 +171,8 @@ class WikidataRdfRevision(WikidataRevision):
 
         wdtk_rdf_writer.finish()
 
-        return WikidataRdfRevision(
-            **asdict(revision),
+        return WikidataRdfRevision.construct(
+            **revision.dict(),
             triples=[
                 WikidataRdfTriple(
                     *map(cls._prefix_ntriples_uri, line[: -len(" .")].split(" ", 2))
