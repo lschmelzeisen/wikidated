@@ -29,7 +29,9 @@ from nasty_utils import ColoredBraceStyleAdapter
 from tqdm import tqdm
 
 from wikidata_history_analyzer._utils import p7z_open
-from wikidata_history_analyzer.datamodel.wikidata_revision import WikidataRevision
+from wikidata_history_analyzer.datamodel.wikidata_raw_revision import (
+    WikidataRawRevision,
+)
 from wikidata_history_analyzer.datamodel.wikidata_site_info import WikidataSiteInfo
 from wikidata_history_analyzer.dumpfiles.wikidata_dump import WikidataDump
 
@@ -75,7 +77,7 @@ class WikidataMetaHistoryDump(WikidataDump):
 
     def iter_revisions(
         self, *, display_progress_bar: bool = True
-    ) -> Iterator[WikidataRevision]:
+    ) -> Iterator[WikidataRawRevision]:
         assert self.path.exists()
 
         num_pages = self.max_page_id - self.min_page_id + 1
@@ -193,7 +195,7 @@ class WikidataMetaHistoryDump(WikidataDump):
         )
 
     @classmethod
-    def _process_page(cls, lines: Iterator[str]) -> Iterator[WikidataRevision]:
+    def _process_page(cls, lines: Iterator[str]) -> Iterator[WikidataRawRevision]:
         cls._assert_opening_tag(next(lines), "page")
         prefixed_title = cls._unescape_xml(cls._extract_value(next(lines), "title"))
         namespace = int(cls._extract_value(next(lines), "ns"))
@@ -227,7 +229,7 @@ class WikidataMetaHistoryDump(WikidataDump):
         namespace: int,
         page_id: int,
         redirect: Optional[str],
-    ) -> WikidataRevision:
+    ) -> WikidataRawRevision:
         cls._assert_opening_tag(next(lines), "revision")
         revision_id = int(cls._extract_value(next(lines), "id"))
 
@@ -287,7 +289,7 @@ class WikidataMetaHistoryDump(WikidataDump):
 
         cls._assert_closing_tag(next(lines), "revision")
 
-        return WikidataRevision.construct(
+        return WikidataRawRevision.construct(
             prefixed_title=prefixed_title,
             namespace=namespace,
             page_id=page_id,

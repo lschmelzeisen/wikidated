@@ -253,7 +253,7 @@ class WikidataExtractRdf(Program):
 
             num_processed_revisions += 1
             try:
-                rdf_revision = WikidataRdfRevision.from_revision(
+                rdf_revision = WikidataRdfRevision.from_raw_revision(
                     revision, sites_table, jvm_manager
                 )
                 rdf_revision.save_to_file(data_dir, dump.path.name)

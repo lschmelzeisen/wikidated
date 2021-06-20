@@ -17,15 +17,14 @@
 from __future__ import annotations
 
 import gzip
+from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Type, TypeVar
 
-from jpype import JClass, JException, JObject  # type: ignore
 from pydantic import BaseModel as PydanticModel
 
-from wikidata_history_analyzer._paths import get_wikidata_revision_dir
-from wikidata_history_analyzer.jvm_manager import JvmManager
+_T_WikidataRevision = TypeVar("_T_WikidataRevision", bound="WikidataRevision")
 
 
 class WikidataRevisionProcessingException(Exception):
@@ -46,14 +45,7 @@ class WikidataRevisionProcessingException(Exception):
         )
 
 
-class WikidataRevisionWdtkDeserializationException(WikidataRevisionProcessingException):
-    pass
-
-
-_T_WikidataRevision = TypeVar("_T_WikidataRevision", bound="WikidataRevision")
-
-
-class WikidataRevision(PydanticModel):
+class WikidataRevision(PydanticModel, ABC):
     prefixed_title: str
     namespace: int
     page_id: int
@@ -67,44 +59,12 @@ class WikidataRevision(PydanticModel):
     comment: Optional[str]
     content_model: str
     format: str
-    text: Optional[str]
     sha1: Optional[str]
 
-    def load_wdtk_deserialization(self, jvm_manager: JvmManager) -> JObject:
-        if self.text is None:
-            raise WikidataRevisionWdtkDeserializationException(
-                "Entity has no text.", self
-            )
-
-        _load_wdtk_classes_and_objects(jvm_manager)
-        assert _WDTK_JSON_SERIALIZER is not None  # for mypy.
-
-        # The following is based on WDTK's WikibaseRevisionProcessor.
-        try:
-            if '"redirect":' in self.text:
-                return _WDTK_JSON_SERIALIZER.deserializeEntityRedirectDocument(
-                    self.text
-                )
-
-            elif self.content_model == "wikibase-item":
-                return _WDTK_JSON_SERIALIZER.deserializeItemDocument(self.text)
-
-            elif self.content_model == "wikibase-property":
-                return _WDTK_JSON_SERIALIZER.deserializePropertyDocument(self.text)
-
-            elif self.content_model == "wikibase-lexeme":
-                return _WDTK_JSON_SERIALIZER.deserializeLexemeDocument(self.text)
-
-            elif self.content_model == "wikitext":
-                return _WDTK_JSON_SERIALIZER.deserializeMediaInfoDocument(self.text)
-
-            else:
-                return _WDTK_JSON_SERIALIZER.deserializeEntityDocument(self.text)
-
-        except JException as exception:
-            raise WikidataRevisionWdtkDeserializationException(
-                "JSON deserialization by Wikidata Toolkit failed.", self, exception
-            )
+    @abstractmethod
+    @classmethod
+    def _base_dir(cls, data_dir: Path) -> Path:
+        pass
 
     @classmethod
     def path(
@@ -117,15 +77,11 @@ class WikidataRevision(PydanticModel):
             / (str(revision_id) + ".json.gz")
         )
 
-    @classmethod
-    def _base_dir(cls, data_dir: Path) -> Path:
-        return get_wikidata_revision_dir(data_dir)
-
     def save_to_file(self, data_dir: Path, dump_name: str) -> None:
         path = self.path(data_dir, dump_name, self.page_id, self.revision_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         with gzip.open(path, "wt", encoding="UTF-8") as fout:
-            fout.write(self.json(indent=2, exclude={"text"}) + "\n")
+            fout.write(self.json(indent=2) + "\n")
 
     @classmethod
     def load_from_file(
@@ -138,14 +94,3 @@ class WikidataRevision(PydanticModel):
         path = cls.path(data_dir, dump_name, page_id, revision_id)
         with gzip.open(path, "rt", encoding="UTF-8") as fin:
             return cls.parse_raw(fin.read())
-
-
-_WDTK_JSON_SERIALIZER: Optional[JObject] = None
-
-
-def _load_wdtk_classes_and_objects(_jvm_manager: JvmManager) -> None:
-    global _WDTK_JSON_SERIALIZER
-    if _WDTK_JSON_SERIALIZER is None:
-        _WDTK_JSON_SERIALIZER = JClass(
-            "org.wikidata.wdtk.datamodel.helpers.JsonDeserializer"
-        )(JClass("org.wikidata.wdtk.datamodel.helpers.Datamodel").SITE_WIKIDATA)

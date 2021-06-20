@@ -25,6 +25,9 @@ from nasty_utils import ColoredBraceStyleAdapter
 from overrides import overrides
 
 from wikidata_history_analyzer._paths import get_wikidata_rdf_revision_dir
+from wikidata_history_analyzer.datamodel.wikidata_raw_revision import (
+    WikidataRawRevision,
+)
 from wikidata_history_analyzer.datamodel.wikidata_revision import (
     WikidataRevision,
     WikidataRevisionProcessingException,
@@ -35,7 +38,7 @@ from wikidata_history_analyzer.jvm_manager import JvmManager
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
 
-class WikidataRevisionWdtkRdfSerializationException(
+class WikidataRdfRevisionWdtkSerializationException(
     WikidataRevisionProcessingException
 ):
     pass
@@ -89,9 +92,14 @@ class WikidataRdfRevision(WikidataRevision):
     triples: Sequence[WikidataRdfTriple]
 
     @classmethod
-    def from_revision(
+    @overrides
+    def _base_dir(cls, data_dir: Path) -> Path:
+        return get_wikidata_rdf_revision_dir(data_dir)
+
+    @classmethod
+    def from_raw_revision(
         cls,
-        revision: WikidataRevision,
+        revision: WikidataRawRevision,
         sites_table: WikidataSitesTable,
         jvm_manager: JvmManager,
         *,
@@ -129,7 +137,7 @@ class WikidataRdfRevision(WikidataRevision):
             wdtk_document_class == "ItemDocumentImpl"
             or wdtk_document_class == "PropertyDocumentImpl"
         ):
-            raise WikidataRevisionWdtkRdfSerializationException(
+            raise WikidataRdfRevisionWdtkSerializationException(
                 f"RDF serialization of {wdtk_document_class} not implemented.", revision
             )
 
@@ -158,7 +166,7 @@ class WikidataRdfRevision(WikidataRevision):
             #  redirect, even if at that time the entity is not yet being redirect.
 
         except JException as exception:
-            raise WikidataRevisionWdtkRdfSerializationException(
+            raise WikidataRdfRevisionWdtkSerializationException(
                 "RDF serialization by Wikidata Toolkit failed.", revision, exception
             )
 
@@ -175,7 +183,20 @@ class WikidataRdfRevision(WikidataRevision):
         wdtk_rdf_writer.finish()
 
         return WikidataRdfRevision.construct(
-            **revision.dict(),
+            prefixed_title=revision.prefixed_title,
+            namespace=revision.namespace,
+            page_id=revision.page_id,
+            redirect=revision.redirect,
+            revision_id=revision.revision_id,
+            parent_revision_id=revision.parent_revision_id,
+            timestamp=revision.timestamp,
+            contributor=revision.contributor,
+            contributor_id=revision.contributor_id,
+            is_minor=revision.is_minor,
+            comment=revision.comment,
+            content_model=revision.content_model,
+            format=revision.format,
+            sha1=revision.sha1,
             triples=[
                 WikidataRdfTriple(
                     *map(cls._prefix_ntriples_uri, line[: -len(" .")].split(" ", 2))
@@ -194,11 +215,6 @@ class WikidataRdfRevision(WikidataRevision):
             if uri.startswith(prefix_url):
                 return prefix + ":" + uri[len(prefix_url) :]
         return "<" + uri + ">"
-
-    @classmethod
-    @overrides
-    def _base_dir(cls, data_dir: Path) -> Path:
-        return get_wikidata_rdf_revision_dir(data_dir)
 
 
 _JAVA_BYTE_ARRAY_OUTPUT_STREAM: Optional[JClass] = None

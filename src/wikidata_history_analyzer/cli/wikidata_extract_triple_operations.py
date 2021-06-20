@@ -194,7 +194,7 @@ class WikidataExtractTripleOperations(Program):
                     num_revisions += 1
 
                     try:
-                        rdf_revision = WikidataRdfRevision.from_revision(
+                        rdf_revision = WikidataRdfRevision.from_raw_revision(
                             revision, sites_table, _JVM_MANAGER
                         )
                     except WikidataRevisionProcessingException as exception:
