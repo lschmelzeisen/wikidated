@@ -128,9 +128,8 @@ class _WikidataDumpStatusJob(PydanticModel):
     updated: datetime
     files: Mapping[str, _WikidataDumpStatusFile]
 
-    @classmethod
     @validator("updated", pre=True)
-    def _parse_datetime(cls, value: str) -> datetime:
+    def _parse_datetime(cls, value: str) -> datetime:  # noqa: N805
         return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
 
 

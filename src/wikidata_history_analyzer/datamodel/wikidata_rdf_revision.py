@@ -16,12 +16,15 @@
 
 from __future__ import annotations
 
+import gzip
 from logging import getLogger
+from pathlib import Path
 from typing import ClassVar, Mapping, NamedTuple, Optional, Sequence
 
 from jpype import JClass, JException, JObject  # type: ignore
 from nasty_utils import ColoredBraceStyleAdapter
 
+from wikidata_history_analyzer._paths import get_wikidata_rdf_revision_dir
 from wikidata_history_analyzer.datamodel.wikidata_revision import (
     WikidataRevision,
     WikidataRevisionProcessingException,
@@ -119,19 +122,19 @@ class WikidataRdfRevision(WikidataRevision):
             wdtk_rdf_converter.writeBasicDeclarations()
 
         wdtk_document = revision.load_wdtk_deserialization(jvm_manager)
-        wdtk_document_class = str(wdtk_document.getClass().getName())
+        wdtk_document_class = str(wdtk_document.getClass().getSimpleName())
         wdtk_resource = wdtk_rdf_writer.getUri(wdtk_document.getEntityId().getIri())
 
         if not (
-            wdtk_document_class == "ItemDocument"
-            or wdtk_document_class == "PropertyDocument"
+            wdtk_document_class == "ItemDocumentImpl"
+            or wdtk_document_class == "PropertyDocumentImpl"
         ):
             raise WikidataRevisionWdtkRdfSerializationException(
                 f"RDF serialization of {wdtk_document_class} not implemented.", revision
             )
 
         try:
-            if wdtk_document_class == "ItemDocument":
+            if wdtk_document_class == "ItemDocumentImpl":
                 wdtk_rdf_converter.writeDocumentType(wdtk_resource, _WDTK_ITEM_IRI)
                 wdtk_rdf_converter.writeDocumentTerms(wdtk_document)
                 wdtk_rdf_converter.writeStatements(wdtk_document)
@@ -139,7 +142,7 @@ class WikidataRdfRevision(WikidataRevision):
                     wdtk_resource, wdtk_document.getSiteLinks()
                 )
 
-            elif wdtk_document_class == "PropertyDocument":
+            elif wdtk_document_class == "PropertyDocumentImpl":
                 wdtk_rdf_converter.writeDocumentType(wdtk_resource, _WDTK_PROPERTY_IRI)
                 wdtk_rdf_converter.writePropertyDatatype(wdtk_document)
                 wdtk_rdf_converter.writeDocumentTerms(wdtk_document)
@@ -191,6 +194,22 @@ class WikidataRdfRevision(WikidataRevision):
             if uri.startswith(prefix_url):
                 return prefix + ":" + uri[len(prefix_url) :]
         return "<" + uri + ">"
+
+    def save_to_file(self, data_dir: Path) -> None:
+        base_dir = get_wikidata_rdf_revision_dir(data_dir)
+        target_file = base_dir / self.page_id / (self.revision_id + ".json.gz")
+        target_file.parent.mkdir(parents=True, exist_ok=True)
+        with gzip.open(target_file, "wt", encoding="UTF-8") as fout:
+            fout.write(self.json(indent=2, exclude={"text"}) + "\n")
+
+    @classmethod
+    def load_from_file(
+        cls, data_dir: Path, page_id: str, revision_id: str
+    ) -> WikidataRdfRevision:
+        base_dir = get_wikidata_rdf_revision_dir(data_dir)
+        target_file = base_dir / page_id / (revision_id + ".json.gz")
+        with gzip.open(target_file, "rt", encoding="UTF-8") as fin:
+            return cls.parse_raw(fin.read())
 
 
 _JAVA_BYTE_ARRAY_OUTPUT_STREAM: Optional[JClass] = None

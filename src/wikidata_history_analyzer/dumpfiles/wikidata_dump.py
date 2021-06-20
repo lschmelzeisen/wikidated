@@ -42,7 +42,9 @@ class WikidataDump:
                     "SHA-1 of already downloaded file did not match. "
                     f"Expected '{self.sha1}', but received {sha1}'."
                 )
-            _LOGGER.debug("File '{}' already exists, skipping...", self.path.name)
+            _LOGGER.debug(
+                "File '{}' already exists, skipping download...", self.path.name
+            )
             return
 
         path_tmp = self.path.parent / (self.path.name + ".tmp")

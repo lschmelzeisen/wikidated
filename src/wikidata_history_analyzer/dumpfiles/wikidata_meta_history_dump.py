@@ -103,6 +103,10 @@ class WikidataMetaHistoryDump(WikidataDump):
                 if progress_bar:
                     progress_bar.update(1)
 
+            if progress_bar:
+                progress_bar.total = progress_bar.n
+                progress_bar.refresh()
+
             try:
                 line = next(lines)
                 raise Exception(f"Expected EOF, instead line was: '{line}'.")

@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel as PydanticModel
 
@@ -28,9 +28,9 @@ class WikidataPageMeta(PydanticModel):
     is_redirect: int  # TODO: Find out and document what this is.
     is_new: int  # TODO: Find out and document what this is.
     random: float  # TODO: Find out and document what this is.
-    touched: datetime  # TODO: Find out and document what this is.
-    links_updated: datetime  # TODO: Find out and document what this is.
+    touched: str  # TODO: Find out and document what this is.
+    links_updated: Optional[str]  # TODO: Find out and document what this is.
     latest_revision_id: str
     len: int  # TODO: Find out and document what this is.
     content_model: str
-    lang: str  # TODO: Find out and document what this is.
+    lang: Optional[str]  # TODO: Find out and document what this is.

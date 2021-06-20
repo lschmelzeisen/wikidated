@@ -21,7 +21,7 @@ def get_wikidata_dump_dir(data_dir: Path) -> Path:
     return data_dir / "dumpfiles"
 
 
-def get_wikidata_rdf_dir(data_dir: Path) -> Path:
+def get_wikidata_rdf_revision_dir(data_dir: Path) -> Path:
     return data_dir / "rdf"
 
 
