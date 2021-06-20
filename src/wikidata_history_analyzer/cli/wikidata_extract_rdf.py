@@ -18,23 +18,19 @@
 from logging import getLogger
 from pathlib import Path
 from sys import argv
-from typing import (
-    AbstractSet,
-    Counter,
-    Iterator,
-    MutableSequence,
-    Sequence,
-    Tuple,
-    cast,
-)
+from typing import AbstractSet, Counter, MutableSequence, Sequence, Tuple, cast
 
 import requests
 from nasty_utils import Argument, ColoredBraceStyleAdapter, Program, ProgramConfig
 from overrides import overrides
 from pydantic import validator
-from tqdm import tqdm
 
 import wikidata_history_analyzer
+from wikidata_history_analyzer._utils import (
+    ParallelizeCallback,
+    ParallelizeProgressCallback,
+    parallelize,
+)
 from wikidata_history_analyzer.datamodel.wikidata_rdf_revision import (
     WikidataRdfRevision,
 )
@@ -47,6 +43,7 @@ from wikidata_history_analyzer.dumpfiles.wikidata_dump_manager import (
 from wikidata_history_analyzer.dumpfiles.wikidata_meta_history_dump import (
     WikidataMetaHistoryDump,
 )
+from wikidata_history_analyzer.dumpfiles.wikidata_sites_table import WikidataSitesTable
 from wikidata_history_analyzer.jvm_manager import JvmManager
 from wikidata_history_analyzer.settings_ import WikidataHistoryAnalyzerSettings
 
@@ -77,7 +74,6 @@ class WikidataExtractRdf(Program):
     page: Sequence[str] = Argument(
         (),
         short_alias="p",
-        alias="page",
         description="Target page ID (separate multiple with commas).",
     )
     revision: Sequence[str] = Argument(
@@ -102,51 +98,43 @@ class WikidataExtractRdf(Program):
             settings.wikidata_dump_mirror_base,
         )
 
+        sites_table = dump_manager.sites_table()
+        sites_table.download()
+
         target_page_ids, target_revision_ids = self._get_target_ids(dump_manager)
         target_dumps = self._get_target_dumps(dump_manager, target_page_ids)
         self._check_extra_page_ids(target_dumps, target_page_ids)
 
-        sites_table = dump_manager.sites_table()
-        sites_table.download()
+        exception_counter_overall = Counter[str]()
+        num_processed_revisions_overall = 0
 
-        exception_counter = Counter[str]()
-        num_processed_revisions = 0
+        num_workers = min(settings.num_workers, len(target_dumps))
+        for num_processed_revisions, exception_counter in parallelize(
+            cast(
+                ParallelizeCallback[WikidataMetaHistoryDump, Tuple[int, Counter[str]]],
+                self._process_dump,
+            ),
+            target_dumps,
+            extra_arguments={
+                "data_dir": settings.data_dir,
+                "sites_table": sites_table,
+                "target_page_ids": target_page_ids,
+                "target_revision_ids": target_revision_ids,
+            },
+            total=len(target_dumps),
+            max_workers=num_workers,
+            jars_dir=settings.wikidata_toolkit_jars_dir,
+        ):
+            num_processed_revisions_overall += num_processed_revisions
+            exception_counter_overall += exception_counter
 
-        with JvmManager(settings.wikidata_toolkit_jars_dir) as jvm_manager:
-            for dump in tqdm(
-                cast(
-                    Iterator[WikidataMetaHistoryDump],
-                    target_dumps or dump_manager.meta_history_dumps(),
-                ),
-                position=1,
-            ):
-                dump.download()
-                for revision in dump.iter_revisions():
-                    if (
-                        target_page_ids and revision.page_id not in target_page_ids
-                    ) or (
-                        target_revision_ids
-                        and revision.revision_id not in target_revision_ids
-                    ):
-                        continue
-
-                    num_processed_revisions += 1
-                    try:
-                        rdf_revision = WikidataRdfRevision.from_revision(
-                            revision, sites_table, jvm_manager
-                        )
-                        rdf_revision.save_to_file(settings.data_dir)
-                    except WikidataRevisionProcessingException as exception:
-                        exception_counter[exception.reason] += 1
-                        continue
-
-        if exception_counter:
+        if exception_counter_overall:
             _LOGGER.warning(
                 "Exception occurred when RDF-serializing (out of {} processed "
                 "revisions):",
-                num_processed_revisions,
+                num_processed_revisions_overall,
             )
-            for reason, count in exception_counter.items():
+            for reason, count in exception_counter_overall.items():
                 _LOGGER.warning("  {} ({})", reason, count)
 
     def _get_target_ids(
@@ -208,7 +196,7 @@ class WikidataExtractRdf(Program):
             _LOGGER.warning(
                 "No target page/revision IDs, will export all pages and revisions!"
             )
-        return target_dumps
+        return target_dumps or dump_manager.meta_history_dumps()
 
     @classmethod
     def _check_extra_page_ids(
@@ -229,6 +217,50 @@ class WikidataExtractRdf(Program):
                 "The following target page IDs are not included in any target dump: {}",
                 sorted(extra_page_ids),
             )
+
+    @classmethod
+    def _process_dump(
+        cls,
+        dump: WikidataMetaHistoryDump,
+        *,
+        data_dir: Path,
+        sites_table: WikidataSitesTable,
+        target_page_ids: AbstractSet[str],
+        target_revision_ids: AbstractSet[str],
+        progress_callback: ParallelizeProgressCallback,
+        jvm_manager: JvmManager,
+        **kwargs: object,
+    ) -> Tuple[int, Counter[str]]:
+        num_pages = int(dump.max_page_id) - int(dump.min_page_id) + 1
+        progress_callback(dump.path.name, 0, num_pages)
+
+        dump.download()
+
+        num_processed_revisions = 0
+        exception_counter = Counter[str]()
+        for revision in dump.iter_revisions(display_progress_bar=False):
+            progress_callback(
+                dump.path.name, int(revision.page_id) - int(dump.min_page_id), num_pages
+            )
+
+            if (target_page_ids and revision.page_id not in target_page_ids) or (
+                target_revision_ids and revision.revision_id not in target_revision_ids
+            ):
+                continue
+
+            num_processed_revisions += 1
+            try:
+                rdf_revision = WikidataRdfRevision.from_revision(
+                    revision, sites_table, jvm_manager
+                )
+                rdf_revision.save_to_file(data_dir, dump.path.name)
+            except WikidataRevisionProcessingException as exception:
+                exception_counter[exception.reason] += 1
+                continue
+
+        progress_callback(dump.path.name, num_pages, num_pages)
+
+        return num_processed_revisions, exception_counter
 
 
 def main(*args: str) -> None:

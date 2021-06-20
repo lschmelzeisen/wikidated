@@ -16,13 +16,13 @@
 
 from __future__ import annotations
 
-import gzip
 from logging import getLogger
 from pathlib import Path
 from typing import ClassVar, Mapping, NamedTuple, Optional, Sequence
 
 from jpype import JClass, JException, JObject  # type: ignore
 from nasty_utils import ColoredBraceStyleAdapter
+from overrides import overrides
 
 from wikidata_history_analyzer._paths import get_wikidata_rdf_revision_dir
 from wikidata_history_analyzer.datamodel.wikidata_revision import (
@@ -195,21 +195,10 @@ class WikidataRdfRevision(WikidataRevision):
                 return prefix + ":" + uri[len(prefix_url) :]
         return "<" + uri + ">"
 
-    def save_to_file(self, data_dir: Path) -> None:
-        base_dir = get_wikidata_rdf_revision_dir(data_dir)
-        target_file = base_dir / self.page_id / (self.revision_id + ".json.gz")
-        target_file.parent.mkdir(parents=True, exist_ok=True)
-        with gzip.open(target_file, "wt", encoding="UTF-8") as fout:
-            fout.write(self.json(indent=2, exclude={"text"}) + "\n")
-
     @classmethod
-    def load_from_file(
-        cls, data_dir: Path, page_id: str, revision_id: str
-    ) -> WikidataRdfRevision:
-        base_dir = get_wikidata_rdf_revision_dir(data_dir)
-        target_file = base_dir / page_id / (revision_id + ".json.gz")
-        with gzip.open(target_file, "rt", encoding="UTF-8") as fin:
-            return cls.parse_raw(fin.read())
+    @overrides
+    def _base_dir(cls, data_dir: Path) -> Path:
+        return get_wikidata_rdf_revision_dir(data_dir)
 
 
 _JAVA_BYTE_ARRAY_OUTPUT_STREAM: Optional[JClass] = None

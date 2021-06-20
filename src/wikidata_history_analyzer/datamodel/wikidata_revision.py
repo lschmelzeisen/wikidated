@@ -16,12 +16,15 @@
 
 from __future__ import annotations
 
+import gzip
 from datetime import datetime
-from typing import Optional
+from pathlib import Path
+from typing import Optional, Type, TypeVar
 
 from jpype import JClass, JException, JObject  # type: ignore
 from pydantic import BaseModel as PydanticModel
 
+from wikidata_history_analyzer._paths import get_wikidata_revision_dir
 from wikidata_history_analyzer.jvm_manager import JvmManager
 
 
@@ -45,6 +48,9 @@ class WikidataRevisionProcessingException(Exception):
 
 class WikidataRevisionWdtkDeserializationException(WikidataRevisionProcessingException):
     pass
+
+
+_T_WikidataRevision = TypeVar("_T_WikidataRevision", bound="WikidataRevision")
 
 
 class WikidataRevision(PydanticModel):
@@ -99,6 +105,36 @@ class WikidataRevision(PydanticModel):
             raise WikidataRevisionWdtkDeserializationException(
                 "JSON deserialization by Wikidata Toolkit failed.", self, exception
             )
+
+    @classmethod
+    def path(
+        cls, data_dir: Path, dump_name: str, page_id: str, revision_id: str
+    ) -> Path:
+        return (
+            cls._base_dir(data_dir) / dump_name / page_id / (revision_id + ".json.gz")
+        )
+
+    @classmethod
+    def _base_dir(cls, data_dir: Path) -> Path:
+        return get_wikidata_revision_dir(data_dir)
+
+    def save_to_file(self, data_dir: Path, dump_name: str) -> None:
+        path = self.path(data_dir, dump_name, self.page_id, self.revision_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with gzip.open(path, "wt", encoding="UTF-8") as fout:
+            fout.write(self.json(indent=2, exclude={"text"}) + "\n")
+
+    @classmethod
+    def load_from_file(
+        cls: Type[_T_WikidataRevision],
+        data_dir: Path,
+        dump_name: str,
+        page_id: str,
+        revision_id: str,
+    ) -> _T_WikidataRevision:
+        path = cls.path(data_dir, dump_name, page_id, revision_id)
+        with gzip.open(path, "rt", encoding="UTF-8") as fin:
+            return cls.parse_raw(fin.read())
 
 
 _WDTK_JSON_SERIALIZER: Optional[JObject] = None

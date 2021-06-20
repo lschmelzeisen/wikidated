@@ -14,15 +14,35 @@
 # limitations under the License.
 #
 
+import atexit
 import hashlib
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from contextlib import contextmanager
 from io import BytesIO
 from logging import getLogger
+from multiprocessing import Manager
 from pathlib import Path
 from subprocess import PIPE, Popen, TimeoutExpired
-from typing import IO, BinaryIO, ContextManager, Iterator, Optional, Union, overload
+from typing import (
+    IO,
+    BinaryIO,
+    ContextManager,
+    Iterable,
+    Iterator,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+    overload,
+)
 
 from nasty_utils import ColoredBraceStyleAdapter
+from tqdm import tqdm
+from typing_extensions import Protocol
+
+from wikidata_history_analyzer.jvm_manager import JvmManager
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
@@ -81,3 +101,109 @@ def sha1sum(file: Union[Path, BinaryIO, BytesIO]) -> str:
             fd.close()
 
     return h.hexdigest()
+
+
+_T_Argument = TypeVar("_T_Argument", contravariant=True)
+_T_Return = TypeVar("_T_Return", covariant=True)
+
+
+class ParallelizeCallback(Protocol[_T_Argument, _T_Return]):
+    def __call__(self, argument: _T_Argument, **kwargs: object) -> _T_Return:
+        ...
+
+
+class ParallelizeProgressCallback(Protocol):
+    def __call__(
+        self, name: str, n: Union[int, float], total: Union[int, float]
+    ) -> None:
+        ...
+
+
+def parallelize(
+    func: ParallelizeCallback[_T_Argument, _T_Return],
+    arguments: Iterable[_T_Argument],
+    *,
+    extra_arguments: Mapping[str, object],
+    total: Optional[int] = None,
+    max_workers: int,
+    jars_dir: Optional[Path] = None,
+    update_frequency: float = 5.0,
+) -> Iterator[_T_Return]:
+    with ProcessPoolExecutor(
+        max_workers=max_workers, initializer=_init_worker, initargs=(jars_dir,)
+    ) as pool, tqdm(
+        total=total, dynamic_ncols=True, position=-max_workers
+    ) as pbar_overall, Manager() as manager:
+        pbar_args: MutableMapping[
+            str, Tuple[Union[int, float], Union[int, float]]
+        ] = manager.dict()  # type: ignore
+        pbars: MutableMapping[str, tqdm[None]] = {}
+
+        futures_not_done = {
+            pool.submit(_func_wrapper, func, argument, extra_arguments, pbar_args)
+            for argument in arguments
+        }
+
+        while True:
+            futures_done, futures_not_done = wait(
+                futures_not_done, timeout=update_frequency, return_when=FIRST_COMPLETED
+            )
+
+            for pbar_name, (pbar_n, pbar_total) in pbar_args.items():
+                pbar = pbars.get(pbar_name)
+                if not pbar:
+                    pbar = tqdm(desc=pbar_name, dynamic_ncols=True)
+                    pbars[pbar_name] = pbar
+                pbar.n = pbar_n
+                pbar.total = pbar_total
+                pbar.refresh()
+                if pbar_n == pbar_total:
+                    pbar.close()
+                pbar_overall.refresh()
+
+            if futures_done:
+                for future in futures_done:
+                    yield future.result()
+                    pbar_overall.update(1)
+
+            if not futures_not_done:
+                break
+
+        for pbar in pbars.values():
+            pbar.close()
+
+
+_JVM_MANAGER: Optional[JvmManager] = None
+
+
+def _init_worker(jars_dir: Optional[Path]) -> None:
+    global _JVM_MANAGER
+    if jars_dir is not None:
+        _JVM_MANAGER = JvmManager(jars_dir)
+    atexit.register(_exit_worker)
+
+
+def _exit_worker() -> None:
+    global _JVM_MANAGER
+    if _JVM_MANAGER is not None:
+        _JVM_MANAGER.close()
+        _JVM_MANAGER = None
+
+
+def _func_wrapper(
+    func: ParallelizeCallback[_T_Argument, _T_Return],
+    argument: _T_Argument,
+    extra_arguments: Mapping[str, object],
+    pbar_args: MutableMapping[str, Tuple[Union[int, float], Union[int, float]]],
+) -> _T_Return:
+    def progress_callback(
+        name: str, n: Union[int, float], total: Union[int, float]
+    ) -> None:
+        pbar_args[name] = (n, total)
+
+    return func(
+        argument,
+        **extra_arguments,
+        progress_callback=progress_callback,
+        jvm_manager=_JVM_MANAGER,
+    )
