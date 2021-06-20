@@ -166,7 +166,7 @@ class WikidataExtractTripleOperations(Program):
         triple_operation_dump_dir.mkdir(parents=True, exist_ok=True)
 
         # Upper bound for the number of possible pages in a dump.
-        max_pages = int(dump.max_page_id) - int(dump.min_page_id) + 1
+        max_pages = dump.max_page_id - dump.min_page_id + 1
         progress_dict[dump.path.name] = (0, max_pages)
 
         _JVM_MANAGER.set_java_logging_file_handler(

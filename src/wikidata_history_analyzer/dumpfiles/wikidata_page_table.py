@@ -75,7 +75,7 @@ class WikidataPageTable(WikidataDump):
                             if namespace_title
                             else match["title"]
                         ),
-                        page_id=match["page_id"],
+                        page_id=int(match["page_id"]),
                         restrictions=match["restrictions"],
                         is_redirect=int(match["is_redirect"]),
                         is_new=int(match["is_new"]),
@@ -86,7 +86,7 @@ class WikidataPageTable(WikidataDump):
                             if match["links_updated"] != "NULL"
                             else None
                         ),
-                        latest_revision_id=match["latest_revision_id"],
+                        latest_revision_id=int(match["latest_revision_id"]),
                         len=int(match["len"]),
                         content_model=match["content_model"],
                         lang=match["lang"] if match["lang"] != "NULL" else None,

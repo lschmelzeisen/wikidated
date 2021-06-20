@@ -71,12 +71,12 @@ class WikidataExtractRdf(Program):
         alias="title",
         description="Target title (prefixed, separate multiple with commas).",
     )
-    page: Sequence[str] = Argument(
+    page: Sequence[int] = Argument(
         (),
         short_alias="p",
         description="Target page ID (separate multiple with commas).",
     )
-    revision: Sequence[str] = Argument(
+    revision: Sequence[int] = Argument(
         (),
         short_alias="r",
         description="Target revision ID (separate multiple with commas).",
@@ -139,7 +139,7 @@ class WikidataExtractRdf(Program):
 
     def _get_target_ids(
         self, dump_manager: WikidataDumpManager
-    ) -> Tuple[AbstractSet[str], AbstractSet[str]]:
+    ) -> Tuple[AbstractSet[int], AbstractSet[int]]:
         target_page_ids = {*self.page}
         target_revision_ids = {*self.revision}
 
@@ -154,7 +154,7 @@ class WikidataExtractRdf(Program):
                         "https://www.wikidata.org/w/api.php?action=query&format=json"
                         "&titles=" + title
                     ).json()
-                    page_id = next(iter(response["query"]["pages"].keys()))
+                    page_id = int(next(iter(response["query"]["pages"].keys())))
                     target_page_ids.add(page_id)
             else:
                 # Iterating through the page table should be faster for many titles.
@@ -164,15 +164,18 @@ class WikidataExtractRdf(Program):
                     if page_meta.prefixed_title in target_titles:
                         target_page_ids.add(page_meta.page_id)
 
-        _LOGGER.info("Target page IDs: {}", ", ".join(sorted(target_page_ids)) or "all")
         _LOGGER.info(
-            "Target revision IDs: {}", ", ".join(sorted(target_revision_ids)) or "all"
+            "Target page IDs: {}", ", ".join(map(str, sorted(target_page_ids))) or "all"
+        )
+        _LOGGER.info(
+            "Target revision IDs: {}",
+            ", ".join(map(str, sorted(target_revision_ids))) or "all",
         )
 
         return target_page_ids, target_revision_ids
 
     def _get_target_dumps(
-        self, dump_manager: WikidataDumpManager, target_page_ids: AbstractSet[str]
+        self, dump_manager: WikidataDumpManager, target_page_ids: AbstractSet[int]
     ) -> Sequence[WikidataMetaHistoryDump]:
         files = set(self.file)
 
@@ -184,7 +187,7 @@ class WikidataExtractRdf(Program):
         elif target_page_ids:
             for dump in dump_manager.meta_history_dumps():
                 for page_id in target_page_ids:
-                    if int(dump.min_page_id) <= int(page_id) <= int(dump.max_page_id):
+                    if dump.min_page_id <= page_id <= dump.max_page_id:
                         target_dumps.append(dump)
                         break
 
@@ -202,7 +205,7 @@ class WikidataExtractRdf(Program):
     def _check_extra_page_ids(
         cls,
         target_dumps: Sequence[WikidataMetaHistoryDump],
-        target_page_ids: AbstractSet[str],
+        target_page_ids: AbstractSet[int],
     ) -> None:
         extra_page_ids = set()
         for page_id in target_page_ids:
@@ -225,13 +228,13 @@ class WikidataExtractRdf(Program):
         *,
         data_dir: Path,
         sites_table: WikidataSitesTable,
-        target_page_ids: AbstractSet[str],
-        target_revision_ids: AbstractSet[str],
+        target_page_ids: AbstractSet[int],
+        target_revision_ids: AbstractSet[int],
         progress_callback: ParallelizeProgressCallback,
         jvm_manager: JvmManager,
         **kwargs: object,
     ) -> Tuple[int, Counter[str]]:
-        num_pages = int(dump.max_page_id) - int(dump.min_page_id) + 1
+        num_pages = dump.max_page_id - dump.min_page_id + 1
         progress_callback(dump.path.name, 0, num_pages)
 
         dump.download()
@@ -240,7 +243,7 @@ class WikidataExtractRdf(Program):
         exception_counter = Counter[str]()
         for revision in dump.iter_revisions(display_progress_bar=False):
             progress_callback(
-                dump.path.name, int(revision.page_id) - int(dump.min_page_id), num_pages
+                dump.path.name, revision.page_id - dump.min_page_id, num_pages
             )
 
             if (target_page_ids and revision.page_id not in target_page_ids) or (

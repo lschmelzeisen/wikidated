@@ -23,14 +23,14 @@ class WikidataPageMeta(PydanticModel):
     title: str
     prefixed_title: str
     namespace: int
-    page_id: str
+    page_id: int
     restrictions: str  # TODO: Find out and document what this is.
     is_redirect: int  # TODO: Find out and document what this is.
     is_new: int  # TODO: Find out and document what this is.
     random: float  # TODO: Find out and document what this is.
     touched: str  # TODO: Find out and document what this is.
     links_updated: Optional[str]  # TODO: Find out and document what this is.
-    latest_revision_id: str
+    latest_revision_id: int
     len: int  # TODO: Find out and document what this is.
     content_model: str
     lang: Optional[str]  # TODO: Find out and document what this is.

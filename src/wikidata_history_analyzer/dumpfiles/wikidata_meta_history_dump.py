@@ -62,8 +62,8 @@ class WikidataMetaHistoryDump(WikidataDump):
         if not match:
             raise WikidataMetaHistoryDumpInvalidPathException(self.path)
         self.date_ = date(int(match["year"]), int(match["month"]), int(match["day"]))
-        self.min_page_id = match["min_page_id"]
-        self.max_page_id = match["max_page_id"]
+        self.min_page_id = int(match["min_page_id"])
+        self.max_page_id = int(match["max_page_id"])
 
     def site_info(self) -> WikidataSiteInfo:
         assert self.path.exists()
@@ -78,7 +78,7 @@ class WikidataMetaHistoryDump(WikidataDump):
     ) -> Iterator[WikidataRevision]:
         assert self.path.exists()
 
-        num_pages = int(self.max_page_id) - int(self.min_page_id) + 1
+        num_pages = self.max_page_id - self.min_page_id + 1
         progress_bar: Optional[tqdm[None]] = (
             tqdm(desc=self.path.name, total=num_pages, dynamic_ncols=True)
             if display_progress_bar
@@ -197,7 +197,7 @@ class WikidataMetaHistoryDump(WikidataDump):
         cls._assert_opening_tag(next(lines), "page")
         prefixed_title = cls._unescape_xml(cls._extract_value(next(lines), "title"))
         namespace = int(cls._extract_value(next(lines), "ns"))
-        page_id = cls._extract_value(next(lines), "id")
+        page_id = int(cls._extract_value(next(lines), "id"))
 
         redirect: Optional[str] = None
         line = next(lines)
@@ -225,16 +225,16 @@ class WikidataMetaHistoryDump(WikidataDump):
         *,
         prefixed_title: str,
         namespace: int,
-        page_id: str,
+        page_id: int,
         redirect: Optional[str],
     ) -> WikidataRevision:
         cls._assert_opening_tag(next(lines), "revision")
-        revision_id = cls._extract_value(next(lines), "id")
+        revision_id = int(cls._extract_value(next(lines), "id"))
 
-        parent_revision_id: Optional[str] = None
+        parent_revision_id: Optional[int] = None
         line = next(lines)
         if cls._is_opening_tag(line, "parentid"):
-            parent_revision_id = cls._extract_value(line, "parentid")
+            parent_revision_id = int(cls._extract_value(line, "parentid"))
         else:
             lines = chain((line,), lines)
 
@@ -243,7 +243,7 @@ class WikidataMetaHistoryDump(WikidataDump):
         )
 
         contributor: Optional[str] = None
-        contributor_id: Optional[str] = None
+        contributor_id: Optional[int] = None
         line = next(lines)
         cls._assert_opening_tag(line, "contributor")
         if 'deleted="deleted"' not in line:  # <contributor deleted="deleted" />
@@ -252,7 +252,7 @@ class WikidataMetaHistoryDump(WikidataDump):
                 contributor = cls._extract_value(line, "ip")
             else:
                 contributor = cls._extract_value(line, "username")
-                contributor_id = cls._extract_value(next(lines), "id")
+                contributor_id = int(cls._extract_value(next(lines), "id"))
             cls._assert_closing_tag(next(lines), "contributor")
 
         is_minor = False

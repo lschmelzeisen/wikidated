@@ -56,13 +56,13 @@ _T_WikidataRevision = TypeVar("_T_WikidataRevision", bound="WikidataRevision")
 class WikidataRevision(PydanticModel):
     prefixed_title: str
     namespace: int
-    page_id: str
+    page_id: int
     redirect: Optional[str]
-    revision_id: str
-    parent_revision_id: Optional[str]
+    revision_id: int
+    parent_revision_id: Optional[int]
     timestamp: datetime
     contributor: Optional[str]
-    contributor_id: Optional[str]
+    contributor_id: Optional[int]
     is_minor: bool
     comment: Optional[str]
     content_model: str
@@ -108,10 +108,13 @@ class WikidataRevision(PydanticModel):
 
     @classmethod
     def path(
-        cls, data_dir: Path, dump_name: str, page_id: str, revision_id: str
+        cls, data_dir: Path, dump_name: str, page_id: int, revision_id: int
     ) -> Path:
         return (
-            cls._base_dir(data_dir) / dump_name / page_id / (revision_id + ".json.gz")
+            cls._base_dir(data_dir)
+            / dump_name
+            / str(page_id)
+            / (str(revision_id) + ".json.gz")
         )
 
     @classmethod
@@ -129,8 +132,8 @@ class WikidataRevision(PydanticModel):
         cls: Type[_T_WikidataRevision],
         data_dir: Path,
         dump_name: str,
-        page_id: str,
-        revision_id: str,
+        page_id: int,
+        revision_id: int,
     ) -> _T_WikidataRevision:
         path = cls.path(data_dir, dump_name, page_id, revision_id)
         with gzip.open(path, "rt", encoding="UTF-8") as fin:
