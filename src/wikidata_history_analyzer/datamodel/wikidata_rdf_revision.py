@@ -18,13 +18,13 @@ from __future__ import annotations
 
 from logging import getLogger
 from pathlib import Path
-from typing import ClassVar, Mapping, NamedTuple, Optional, Sequence
+from typing import NamedTuple, Optional, Sequence
 
 from jpype import JClass, JException, JObject  # type: ignore
 from nasty_utils import ColoredBraceStyleAdapter
 from overrides import overrides
 
-from wikidata_history_analyzer._paths import get_wikidata_rdf_revision_dir
+from wikidata_history_analyzer._paths import wikidata_rdf_revision_dir
 from wikidata_history_analyzer.datamodel.wikidata_raw_revision import (
     WikidataRawRevision,
 )
@@ -44,6 +44,45 @@ class WikidataRdfRevisionWdtkSerializationException(
     pass
 
 
+# Prefixes taken from
+# https://www.mediawiki.org/w/index.php?title=Wikibase/Indexing/RDF_Dump_Format&oldid=4471307#Full_list_of_prefixes
+# but sorted so that the longer URLs come first to enable one-pass prefixing.
+WIKIDATA_RDF_PREFIXES = {
+    "cc": "http://creativecommons.org/ns#",
+    "dct": "http://purl.org/dc/terms/",
+    "schema": "http://schema.org/",
+    "wikibase": "http://wikiba.se/ontology#",
+    "hint": "http://www.bigdata.com/queryHints#",
+    "bd": "http://www.bigdata.com/rdf#",
+    "geo": "http://www.opengis.net/ont/geosparql#",
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "owl": "http://www.w3.org/2002/07/owl#",
+    "skos": "http://www.w3.org/2004/02/skos/core#",
+    "ontolex": "http://www.w3.org/ns/lemon/ontolex#",
+    "prov": "http://www.w3.org/ns/prov#",
+    "wds": "http://www.wikidata.org/entity/statement/",
+    "wd": "http://www.wikidata.org/entity/",
+    "wdtn": "http://www.wikidata.org/prop/direct-normalized/",
+    "wdt": "http://www.wikidata.org/prop/direct/",
+    "wdno": "http://www.wikidata.org/prop/novalue/",
+    "pqn": "http://www.wikidata.org/prop/qualifier/value-normalized/",
+    "pqv": "http://www.wikidata.org/prop/qualifier/value/",
+    "pq": "http://www.wikidata.org/prop/qualifier/",
+    "prn": "http://www.wikidata.org/prop/reference/value-normalized/",
+    "prv": "http://www.wikidata.org/prop/reference/value/",
+    "pr": "http://www.wikidata.org/prop/reference/",
+    "psn": "http://www.wikidata.org/prop/statement/value-normalized/",
+    "psv": "http://www.wikidata.org/prop/statement/value/",
+    "ps": "http://www.wikidata.org/prop/statement/",
+    "p": "http://www.wikidata.org/prop/",
+    "wdref": "http://www.wikidata.org/reference/",
+    "wdv": "http://www.wikidata.org/value/",
+    "wdata": "http://www.wikidata.org/wiki/Special:EntityData/",
+}
+
+
 class WikidataRdfTriple(NamedTuple):
     subject: str
     predicate: str
@@ -51,50 +90,12 @@ class WikidataRdfTriple(NamedTuple):
 
 
 class WikidataRdfRevision(WikidataRevision):
-    # Prefixes taken from
-    # https://www.mediawiki.org/w/index.php?title=Wikibase/Indexing/RDF_Dump_Format&oldid=4471307#Full_list_of_prefixes
-    # but sorted so that the longer URLs come first to enable one-pass prefixing.
-    PREFIXES: ClassVar[Mapping[str, str]] = {
-        "cc": "http://creativecommons.org/ns#",
-        "dct": "http://purl.org/dc/terms/",
-        "schema": "http://schema.org/",
-        "wikibase": "http://wikiba.se/ontology#",
-        "hint": "http://www.bigdata.com/queryHints#",
-        "bd": "http://www.bigdata.com/rdf#",
-        "geo": "http://www.opengis.net/ont/geosparql#",
-        "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-        "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
-        "xsd": "http://www.w3.org/2001/XMLSchema#",
-        "owl": "http://www.w3.org/2002/07/owl#",
-        "skos": "http://www.w3.org/2004/02/skos/core#",
-        "ontolex": "http://www.w3.org/ns/lemon/ontolex#",
-        "prov": "http://www.w3.org/ns/prov#",
-        "wds": "http://www.wikidata.org/entity/statement/",
-        "wd": "http://www.wikidata.org/entity/",
-        "wdtn": "http://www.wikidata.org/prop/direct-normalized/",
-        "wdt": "http://www.wikidata.org/prop/direct/",
-        "wdno": "http://www.wikidata.org/prop/novalue/",
-        "pqn": "http://www.wikidata.org/prop/qualifier/value-normalized/",
-        "pqv": "http://www.wikidata.org/prop/qualifier/value/",
-        "pq": "http://www.wikidata.org/prop/qualifier/",
-        "prn": "http://www.wikidata.org/prop/reference/value-normalized/",
-        "prv": "http://www.wikidata.org/prop/reference/value/",
-        "pr": "http://www.wikidata.org/prop/reference/",
-        "psn": "http://www.wikidata.org/prop/statement/value-normalized/",
-        "psv": "http://www.wikidata.org/prop/statement/value/",
-        "ps": "http://www.wikidata.org/prop/statement/",
-        "p": "http://www.wikidata.org/prop/",
-        "wdref": "http://www.wikidata.org/reference/",
-        "wdv": "http://www.wikidata.org/value/",
-        "wdata": "http://www.wikidata.org/wiki/Special:EntityData/",
-    }
-
     triples: Sequence[WikidataRdfTriple]
 
     @classmethod
     @overrides
     def _base_dir(cls, data_dir: Path) -> Path:
-        return get_wikidata_rdf_revision_dir(data_dir)
+        return wikidata_rdf_revision_dir(data_dir)
 
     @classmethod
     def from_raw_revision(
@@ -211,7 +212,7 @@ class WikidataRdfRevision(WikidataRevision):
             return uri  # Argument is not an URI.
 
         uri = uri[1:-1]  # Remove brackets before and after URI.
-        for prefix, prefix_url in cls.PREFIXES.items():
+        for prefix, prefix_url in WIKIDATA_RDF_PREFIXES.items():
             if uri.startswith(prefix_url):
                 return prefix + ":" + uri[len(prefix_url) :]
         return "<" + uri + ">"

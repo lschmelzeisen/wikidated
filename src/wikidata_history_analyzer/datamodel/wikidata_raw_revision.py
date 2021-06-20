@@ -22,7 +22,7 @@ from typing import Optional, TypeVar
 from jpype import JClass, JException, JObject  # type: ignore
 from overrides import overrides
 
-from wikidata_history_analyzer._paths import get_wikidata_revision_dir
+from wikidata_history_analyzer._paths import wikidata_revision_dir
 from wikidata_history_analyzer.datamodel.wikidata_revision import (
     WikidataRevision,
     WikidataRevisionProcessingException,
@@ -45,7 +45,7 @@ class WikidataRawRevision(WikidataRevision):
     @classmethod
     @overrides
     def _base_dir(cls, data_dir: Path) -> Path:
-        return get_wikidata_revision_dir(data_dir)
+        return wikidata_revision_dir(data_dir)
 
     def load_wdtk_deserialization(self, jvm_manager: JvmManager) -> JObject:
         if self.text is None:

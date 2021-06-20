@@ -28,7 +28,7 @@ from pydantic import BaseModel as PydanticModel
 from pydantic import validator
 from tqdm import tqdm
 
-from wikidata_history_analyzer._paths import get_wikidata_dump_dir
+from wikidata_history_analyzer._paths import wikidata_dump_dir
 from wikidata_history_analyzer.dumpfiles.wikidata_dump import WikidataDump
 from wikidata_history_analyzer.dumpfiles.wikidata_meta_history_dump import (
     WikidataMetaHistoryDump,
@@ -44,7 +44,7 @@ _T_WikidataDump = TypeVar("_T_WikidataDump", bound=WikidataDump)
 
 class WikidataDumpManager:
     def __init__(self, data_dir: Path, dump_version: str, dump_mirror: str):
-        self._dump_dir = get_wikidata_dump_dir(data_dir)
+        self._dump_dir = wikidata_dump_dir(data_dir)
         self._dump_version = dump_version
         self._dump_mirror = dump_mirror
         self._dump_status = self._load_dump_status()
