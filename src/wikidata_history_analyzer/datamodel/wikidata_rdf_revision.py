@@ -142,6 +142,9 @@ class WikidataRdfRevision(WikidataRevision):
         wdtk_rdf_converter = _WDTK_RDF_CONVERTER(
             wdtk_rdf_writer, wdtk_sites, _WDTK_PROPERTY_REGISTER
         )
+        # Largest Java Integer, i.e., just ones in the binary representation. Used here
+        # as the aggregation of all possible flags.
+        wdtk_rdf_converter.setTasks(2 ** 31 - 1)
 
         if include_bloat:
             wdtk_rdf_converter.writeNamespaceDeclarations()
