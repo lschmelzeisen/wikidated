@@ -69,11 +69,19 @@ def page_ids_from_prefixed_titles(
 def meta_history_dumps_for_dump_names(
     dump_names: AbstractSet[str], dump_manager: WikidataDumpManager
 ) -> Sequence[WikidataMetaHistoryDump]:
-    return [
+    result = [
         dump
         for dump in dump_manager.meta_history_dumps()
         if dump.path.name in dump_names
     ]
+    extra_dump_names = dump_names - set(dump.path.name for dump in result)
+    if extra_dump_names:
+        raise Exception(
+            "Meta history dumps with following names could not be found: "
+            + ", ".join(sorted(extra_dump_names))
+        )
+
+    return result
 
 
 def meta_history_dumps_for_page_ids(
@@ -107,5 +115,5 @@ def check_page_ids_in_meta_history_dumps(
     if extra_page_ids:
         _LOGGER.warning(
             "Following page IDs are not included in any given meta history dump: {}",
-            sorted(extra_page_ids),
+            ", ".join(map(str, sorted(extra_page_ids))),
         )
