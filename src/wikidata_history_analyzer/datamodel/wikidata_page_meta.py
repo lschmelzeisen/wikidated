@@ -16,15 +16,10 @@
 
 from typing import Optional
 
-import orjson
 from pydantic import BaseModel as PydanticModel
 
 
 class WikidataPageMeta(PydanticModel):
-    class Config:
-        json_loads = orjson.loads
-        json_dumps = orjson.dumps
-
     title: str
     prefixed_title: str
     namespace: int

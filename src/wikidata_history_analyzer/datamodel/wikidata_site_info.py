@@ -16,15 +16,10 @@
 
 from typing import Mapping
 
-import orjson
 from pydantic import BaseModel as PydanticModel
 
 
 class WikidataSiteInfo(PydanticModel):
-    class Config:
-        json_loads = orjson.loads
-        json_dumps = orjson.dumps
-
     site_name: str
     db_name: str
     base: str
