@@ -103,6 +103,10 @@ class WikidataExtractIncrementalRdf(WikidataRdfRevisionProgram):
             wikidata_incremental_rdf_revision_dir(data_dir)
             / meta_history_dump.path.name
         )
+        if out_dir.exists():
+            _LOGGER.info("Directory {} already exists, skipping.", out_dir)
+            return
+
         out_dir_tmp = out_dir.parent / (out_dir.name + ".tmp")
 
         for page_id, revisions in groupby(
