@@ -22,6 +22,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Type, TypeVar
 
+import orjson
 from pydantic import BaseModel as PydanticModel
 
 _T_WikidataRevision = TypeVar("_T_WikidataRevision", bound="WikidataRevision")
@@ -46,6 +47,10 @@ class WikidataRevisionProcessingException(Exception):
 
 
 class WikidataRevision(PydanticModel, ABC):
+    class Config:
+        json_loads = orjson.loads
+        json_dumps = orjson.dumps
+
     prefixed_title: str
     namespace: int
     page_id: int

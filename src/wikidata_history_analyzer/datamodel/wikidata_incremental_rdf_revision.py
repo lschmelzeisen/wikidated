@@ -44,6 +44,7 @@ class WikidataIncrementalRdfRevision(WikidataRevision):
                 state = set()
 
             # TODO: blank notes (important!)
+            # TODO: does it occur that blank nodes can be subjects?
             triples_set = set(revision.triples)
             deleted_triples = state - triples_set
             added_triples = triples_set - state
