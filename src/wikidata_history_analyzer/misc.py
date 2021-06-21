@@ -74,7 +74,7 @@ def meta_history_dumps_for_dump_names(
         for dump in dump_manager.meta_history_dumps()
         if dump.path.name in dump_names
     ]
-    extra_dump_names = dump_names - set(dump.path.name for dump in result)
+    extra_dump_names = dump_names - {dump.path.name for dump in result}
     if extra_dump_names:
         raise Exception(
             "Meta history dumps with following names could not be found: "
