@@ -94,7 +94,7 @@ class WikidataRdfRevision(WikidataRevision):
 
     @classmethod
     @overrides
-    def _base_dir(cls, data_dir: Path) -> Path:
+    def base_dir(cls, data_dir: Path) -> Path:
         return wikidata_rdf_revision_dir(data_dir)
 
     @classmethod

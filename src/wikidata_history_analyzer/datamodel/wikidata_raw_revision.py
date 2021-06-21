@@ -44,7 +44,7 @@ class WikidataRawRevision(WikidataRevision):
 
     @classmethod
     @overrides
-    def _base_dir(cls, data_dir: Path) -> Path:
+    def base_dir(cls, data_dir: Path) -> Path:
         return wikidata_revision_dir(data_dir)
 
     def load_wdtk_deserialization(self, jvm_manager: JvmManager) -> JObject:

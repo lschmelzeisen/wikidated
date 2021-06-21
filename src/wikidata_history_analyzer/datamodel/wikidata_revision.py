@@ -61,9 +61,9 @@ class WikidataRevision(PydanticModel, ABC):
     format: str
     sha1: Optional[str]
 
-    @abstractmethod
     @classmethod
-    def _base_dir(cls, data_dir: Path) -> Path:
+    @abstractmethod
+    def base_dir(cls, data_dir: Path) -> Path:
         pass
 
     @classmethod
@@ -71,7 +71,7 @@ class WikidataRevision(PydanticModel, ABC):
         cls, data_dir: Path, dump_name: str, page_id: int, revision_id: int
     ) -> Path:
         return (
-            cls._base_dir(data_dir)
+            cls.base_dir(data_dir)
             / dump_name
             / str(page_id)
             / (str(revision_id) + ".json.gz")

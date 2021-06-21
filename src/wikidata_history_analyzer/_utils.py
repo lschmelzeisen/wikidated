@@ -129,10 +129,11 @@ def parallelize(
     jars_dir: Optional[Path] = None,
     update_frequency: float = 5.0,
 ) -> Iterator[_T_Return]:
+    num_workers = min(max_workers, total) if total is not None else max_workers
     with ProcessPoolExecutor(
-        max_workers=max_workers, initializer=_init_worker, initargs=(jars_dir,)
+        max_workers=num_workers, initializer=_init_worker, initargs=(jars_dir,)
     ) as pool, tqdm(
-        total=total, dynamic_ncols=True, position=-max_workers
+        total=total, dynamic_ncols=True, position=-num_workers
     ) as pbar_overall, Manager() as manager:
         pbar_args: MutableMapping[
             str, Tuple[Union[int, float], Union[int, float]]

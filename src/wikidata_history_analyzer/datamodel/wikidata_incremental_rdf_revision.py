@@ -36,7 +36,7 @@ class WikidataIncrementalRdfRevision(WikidataRevision):
 
     @classmethod
     @overrides
-    def _base_dir(cls, data_dir: Path) -> Path:
+    def base_dir(cls, data_dir: Path) -> Path:
         return wikidata_incremental_rdf_revision_dir(data_dir)
 
     @classmethod
@@ -51,6 +51,7 @@ class WikidataIncrementalRdfRevision(WikidataRevision):
                 last_page_id = revision.page_id
                 state = set()
 
+            # TODO: blank notes (important!)
             triples_set = set(revision.triples)
             deleted_triples = state - triples_set
             added_triples = triples_set - state
@@ -78,7 +79,7 @@ class WikidataIncrementalRdfRevision(WikidataRevision):
 
     @classmethod
     def iter_path(cls, data_dir: Path, dump_name: str, page_id: int) -> Path:
-        return cls._base_dir(data_dir) / dump_name / (str(page_id) + ".jsonl.gz")
+        return cls.base_dir(data_dir) / dump_name / (str(page_id) + ".jsonl.gz")
 
     @classmethod
     def save_iter_to_file(

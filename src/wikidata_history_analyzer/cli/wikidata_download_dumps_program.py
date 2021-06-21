@@ -29,7 +29,7 @@ from wikidata_history_analyzer.settings_ import WikidataHistoryAnalyzerSettings
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
 
-class WikidataDownloadDumps(Program):
+class WikidataDownloadDumpsProgram(Program):
     class Config(ProgramConfig):
         title = "wikidata-download-dumps"
         version = wikidata_history_analyzer.__version__
@@ -54,7 +54,7 @@ class WikidataDownloadDumps(Program):
 def main(*args: str) -> None:
     if not args:
         args = tuple(argv[1:])
-    WikidataDownloadDumps.init(*args).run()
+    WikidataDownloadDumpsProgram.init(*args).run()
 
 
 if __name__ == "__main__":
