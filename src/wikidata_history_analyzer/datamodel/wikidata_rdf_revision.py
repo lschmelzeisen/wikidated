@@ -83,7 +83,32 @@ WIKIDATA_RDF_PREFIXES = {
 class WikidataRdfTriple(NamedTuple):
     subject: str
     predicate: str
-    object: str
+    object_: str
+
+    # We need to reimplement equivalence and hash generation, since WDTK generates blank
+    # nodes as something like "_:node1f8mm5pv5x4125", i.e., it gives them an
+    # auto-generated ID. There is now way to ensure that the blank node ID for the same
+    # triple will be the same if the RDF is regenerated. Because of this, we are here
+    # treating all blank nodes as being equal to one another. Luckily, for WDTK's RDF
+    # generation, blank nodes only occur in the object position and are never reused.
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, WikidataRdfTriple):
+            return False
+        if self.object_[:2] == "_:" and other.object_[:2] == "_:":
+            return self.subject == other.subject and self.predicate == other.predicate
+        else:
+            return (
+                self.subject == other.subject
+                and self.predicate == other.predicate
+                and self.object_ == other.object_
+            )
+
+    def __hash__(self) -> int:
+        if self.object_[:2] == "_:":
+            return hash((self.subject, self.predicate, "_:"))
+        else:
+            return hash((self.subject, self.predicate, self.object_))
 
 
 class WikidataRdfRevision(WikidataRevision):
