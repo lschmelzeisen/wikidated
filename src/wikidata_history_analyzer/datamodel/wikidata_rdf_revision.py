@@ -17,14 +17,11 @@
 from __future__ import annotations
 
 from logging import getLogger
-from pathlib import Path
 from typing import NamedTuple, Optional, Sequence
 
 from jpype import JClass, JException, JObject  # type: ignore
 from nasty_utils import ColoredBraceStyleAdapter
-from overrides import overrides
 
-from wikidata_history_analyzer._paths import wikidata_rdf_revision_dir
 from wikidata_history_analyzer.datamodel.wikidata_raw_revision import (
     WikidataRawRevision,
 )
@@ -91,11 +88,6 @@ class WikidataRdfTriple(NamedTuple):
 
 class WikidataRdfRevision(WikidataRevision):
     triples: Sequence[WikidataRdfTriple]
-
-    @classmethod
-    @overrides
-    def base_dir(cls, data_dir: Path) -> Path:
-        return wikidata_rdf_revision_dir(data_dir)
 
     @classmethod
     def from_raw_revision(

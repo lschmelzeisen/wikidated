@@ -25,6 +25,7 @@ from nasty_utils import ColoredBraceStyleAdapter, ProgramConfig
 from overrides import overrides
 
 import wikidata_history_analyzer
+from wikidata_history_analyzer._paths import wikidata_incremental_rdf_revision_dir
 from wikidata_history_analyzer._utils import (
     ParallelizeCallback,
     ParallelizeProgressCallback,
@@ -98,6 +99,12 @@ class WikidataExtractIncrementalRdf(WikidataRdfRevisionProgram):
         jvm_manager: JvmManager,
         **kwargs: object,
     ) -> None:
+        out_dir = (
+            wikidata_incremental_rdf_revision_dir(data_dir)
+            / meta_history_dump.path.name
+        )
+        out_dir_tmp = out_dir.parent / (out_dir.name + ".tmp")
+
         for page_id, revisions in groupby(
             WikidataIncrementalRdfRevision.from_rdf_revisions(
                 cls._iter_rdf_revisions(
@@ -106,17 +113,16 @@ class WikidataExtractIncrementalRdf(WikidataRdfRevisionProgram):
                     page_ids=page_ids,
                     progress_callback=progress_callback,
                     jvm_manager=jvm_manager,
-                    log_dir=(
-                        WikidataIncrementalRdfRevision.base_dir(data_dir)
-                        / meta_history_dump.path.name
-                    ),
+                    log_dir=out_dir_tmp,
                 )
             ),
             lambda revision: revision.page_id,
         ):
             WikidataIncrementalRdfRevision.save_iter_to_file(
-                revisions, data_dir, meta_history_dump.path.name, page_id
+                revisions, out_dir_tmp, page_id
             )
+
+        out_dir_tmp.rename(out_dir)
 
 
 def main(*args: str) -> None:

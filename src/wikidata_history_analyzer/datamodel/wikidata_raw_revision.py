@@ -16,13 +16,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Optional, TypeVar
 
 from jpype import JClass, JException, JObject  # type: ignore
-from overrides import overrides
 
-from wikidata_history_analyzer._paths import wikidata_revision_dir
 from wikidata_history_analyzer.datamodel.wikidata_revision import (
     WikidataRevision,
     WikidataRevisionProcessingException,
@@ -41,11 +38,6 @@ _T_WikidataRevision = TypeVar("_T_WikidataRevision", bound="WikidataRevision")
 
 class WikidataRawRevision(WikidataRevision):
     text: Optional[str]
-
-    @classmethod
-    @overrides
-    def base_dir(cls, data_dir: Path) -> Path:
-        return wikidata_revision_dir(data_dir)
 
     def load_wdtk_deserialization(self, jvm_manager: JvmManager) -> JObject:
         if self.text is None:

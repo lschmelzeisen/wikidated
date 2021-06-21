@@ -20,9 +20,6 @@ import gzip
 from pathlib import Path
 from typing import Iterator, Sequence, Set
 
-from overrides import overrides
-
-from wikidata_history_analyzer._paths import wikidata_incremental_rdf_revision_dir
 from wikidata_history_analyzer.datamodel.wikidata_rdf_revision import (
     WikidataRdfRevision,
     WikidataRdfTriple,
@@ -33,11 +30,6 @@ from wikidata_history_analyzer.datamodel.wikidata_revision import WikidataRevisi
 class WikidataIncrementalRdfRevision(WikidataRevision):
     deleted_triples: Sequence[WikidataRdfTriple]
     added_triples: Sequence[WikidataRdfTriple]
-
-    @classmethod
-    @overrides
-    def base_dir(cls, data_dir: Path) -> Path:
-        return wikidata_incremental_rdf_revision_dir(data_dir)
 
     @classmethod
     def from_rdf_revisions(
@@ -78,18 +70,17 @@ class WikidataIncrementalRdfRevision(WikidataRevision):
             )
 
     @classmethod
-    def iter_path(cls, data_dir: Path, dump_name: str, page_id: int) -> Path:
-        return cls.base_dir(data_dir) / dump_name / (str(page_id) + ".jsonl.gz")
+    def iter_path(cls, dir_: Path, page_id: int) -> Path:
+        return dir_ / (str(page_id) + ".jsonl.gz")
 
     @classmethod
     def save_iter_to_file(
         cls,
         revisions: Iterator[WikidataIncrementalRdfRevision],
-        data_dir: Path,
-        dump_name: str,
+        dir_: Path,
         page_id: int,
     ) -> None:
-        path = cls.iter_path(data_dir, dump_name, page_id)
+        path = cls.iter_path(dir_, page_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         with gzip.open(path, "wt", encoding="UTF-8") as fout:
             for revision in revisions:
@@ -98,9 +89,9 @@ class WikidataIncrementalRdfRevision(WikidataRevision):
 
     @classmethod
     def load_iter_from_file(
-        cls, data_dir: Path, dump_name: str, page_id: int
+        cls, dir_: Path, page_id: int
     ) -> Iterator[WikidataIncrementalRdfRevision]:
-        path = cls.iter_path(data_dir, dump_name, page_id)
+        path = cls.iter_path(dir_, page_id)
         with gzip.open(path, "rt", encoding="UTF-8") as fin:
             for line in fin:
                 yield cls.parse_raw(line)

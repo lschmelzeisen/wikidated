@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import gzip
-from abc import ABC, abstractmethod
+from abc import ABC
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Type, TypeVar
@@ -62,23 +62,11 @@ class WikidataRevision(PydanticModel, ABC):
     sha1: Optional[str]
 
     @classmethod
-    @abstractmethod
-    def base_dir(cls, data_dir: Path) -> Path:
-        pass
+    def path(cls, dir_: Path, page_id: int, revision_id: int) -> Path:
+        return dir_ / str(page_id) / (str(revision_id) + ".json.gz")
 
-    @classmethod
-    def path(
-        cls, data_dir: Path, dump_name: str, page_id: int, revision_id: int
-    ) -> Path:
-        return (
-            cls.base_dir(data_dir)
-            / dump_name
-            / str(page_id)
-            / (str(revision_id) + ".json.gz")
-        )
-
-    def save_to_file(self, data_dir: Path, dump_name: str) -> None:
-        path = self.path(data_dir, dump_name, self.page_id, self.revision_id)
+    def save_to_file(self, dir_: Path) -> None:
+        path = self.path(dir_, self.page_id, self.revision_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         with gzip.open(path, "wt", encoding="UTF-8") as fout:
             fout.write(self.json(indent=2) + "\n")
@@ -86,11 +74,10 @@ class WikidataRevision(PydanticModel, ABC):
     @classmethod
     def load_from_file(
         cls: Type[_T_WikidataRevision],
-        data_dir: Path,
-        dump_name: str,
+        dir_: Path,
         page_id: int,
         revision_id: int,
     ) -> _T_WikidataRevision:
-        path = cls.path(data_dir, dump_name, page_id, revision_id)
+        path = cls.path(dir_, page_id, revision_id)
         with gzip.open(path, "rt", encoding="UTF-8") as fin:
             return cls.parse_raw(fin.read())

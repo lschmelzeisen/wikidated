@@ -24,6 +24,7 @@ from nasty_utils import ColoredBraceStyleAdapter, ProgramConfig
 from overrides import overrides
 
 import wikidata_history_analyzer
+from wikidata_history_analyzer._paths import wikidata_rdf_revision_dir
 from wikidata_history_analyzer._utils import (
     ParallelizeCallback,
     ParallelizeProgressCallback,
@@ -31,9 +32,6 @@ from wikidata_history_analyzer._utils import (
 )
 from wikidata_history_analyzer.cli._wikidata_rdf_revision_program import (
     WikidataRdfRevisionProgram,
-)
-from wikidata_history_analyzer.datamodel.wikidata_rdf_revision import (
-    WikidataRdfRevision,
 )
 from wikidata_history_analyzer.dumpfiles.wikidata_dump_manager import (
     WikidataDumpManager,
@@ -97,17 +95,20 @@ class WikidataExtractRdfProgram(WikidataRdfRevisionProgram):
         jvm_manager: JvmManager,
         **kwargs: object,
     ) -> None:
+        out_dir = wikidata_rdf_revision_dir(data_dir) / meta_history_dump.path.name
+        out_dir_tmp = out_dir.parent / (out_dir.name + ".tmp")
+
         for revision in cls._iter_rdf_revisions(
             meta_history_dump,
             sites_table=sites_table,
             page_ids=page_ids,
             progress_callback=progress_callback,
             jvm_manager=jvm_manager,
-            log_dir=(
-                WikidataRdfRevision.base_dir(data_dir) / meta_history_dump.path.name
-            ),
+            log_dir=out_dir_tmp,
         ):
-            revision.save_to_file(data_dir, meta_history_dump.path.name)
+            revision.save_to_file(out_dir_tmp)
+
+        out_dir_tmp.rename(out_dir)
 
 
 def main(*args: str) -> None:
