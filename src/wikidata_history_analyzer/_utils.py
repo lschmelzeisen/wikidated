@@ -164,8 +164,15 @@ def parallelize(
 
             if futures_done:
                 for future in futures_done:
-                    yield future.result()
-                    pbar_overall.update(1)
+                    try:
+                        yield future.result()
+                        pbar_overall.update(1)
+                    except BaseException as exception:
+                        _LOGGER.exception(
+                            "Exception during parallelize: {} {}",
+                            type(exception).__name__,
+                            str(exception),
+                        )
 
             if not futures_not_done:
                 break
