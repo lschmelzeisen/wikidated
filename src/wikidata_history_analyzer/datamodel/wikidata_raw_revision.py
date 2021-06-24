@@ -61,14 +61,12 @@ class WikidataRawRevision(WikidataRevision):
             elif self.content_model == "wikibase-property":
                 return _WDTK_JSON_SERIALIZER.deserializePropertyDocument(self.text)
 
-            elif self.content_model == "wikibase-lexeme":
-                return _WDTK_JSON_SERIALIZER.deserializeLexemeDocument(self.text)
-
-            elif self.content_model == "wikitext":
-                return _WDTK_JSON_SERIALIZER.deserializeMediaInfoDocument(self.text)
-
             else:
-                return _WDTK_JSON_SERIALIZER.deserializeEntityDocument(self.text)
+                raise WikidataRawRevisionWdtkDeserializationException(
+                    f"JSON deserialization of {self.content_model} not implemented by "
+                    "Wikidata Toolkit.",
+                    self,
+                )
 
         except JException as exception:
             raise WikidataRawRevisionWdtkDeserializationException(
