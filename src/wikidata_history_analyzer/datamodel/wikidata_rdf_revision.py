@@ -154,9 +154,10 @@ class WikidataRdfRevision(WikidataRevision):
         wdtk_document_class = str(wdtk_document.getClass().getSimpleName())
         wdtk_resource = wdtk_rdf_writer.getUri(wdtk_document.getEntityId().getIri())
 
-        if not (
-            wdtk_document_class == "ItemDocumentImpl"
-            or wdtk_document_class == "PropertyDocumentImpl"
+        if wdtk_document_class not in (
+            "ItemDocumentImpl",
+            "PropertyDocumentImpl",
+            "EntityRedirectDocumentImpl",
         ):
             raise WikidataRdfRevisionWdtkSerializationException(
                 f"RDF serialization of {wdtk_document_class} not implemented.", revision
@@ -178,13 +179,23 @@ class WikidataRdfRevision(WikidataRevision):
                 wdtk_rdf_converter.writeStatements(wdtk_document)
                 wdtk_rdf_converter.writeInterPropertyLinks(wdtk_document)
 
-            # TODO: Handle EntityRedirectDocument here?
-            # TODO: document that revisions that contain the "redirect" field in their
-            #  JSON indicate that the respective entity is being redirected to the
-            #  target entity starting from that point in time. Additionally, if an
-            #  entity is ever the source of a redirect all revisions of it will also
-            #  carry the revision.redirect attribute indicating the target of the
-            #  redirect, even if at that time the entity is not yet being redirect.
+            elif wdtk_document_class == "EntityRedirectDocumentImpl":
+                # TODO: document that revisions that contain the "redirect" field in
+                #  their JSON indicate that the respective entity is being redirected to
+                #  the target entity starting from that point in time. Additionally, if
+                #  an entity is ever the source of a redirect all revisions of it will
+                #  also carry the revision.redirect attribute indicating the target of
+                #  the redirect, even if at that time the entity is not yet being
+                #  redirect.
+                # The following representation of redirects as owl:sameAs triples is not
+                # done by WDTK. In fact, WDTK does not represent redirects in RDF at
+                # all. We choose to use owl:sameAs here on the basis that the Wikidata
+                # Query Service also uses it to represent redirects.
+                wdtk_rdf_writer.writeTripleUriObject(
+                    wdtk_document.getEntityId().getIri(),
+                    wdtk_rdf_writer.getUri("http://www.w3.org/2002/07/owl#sameAs"),
+                    wdtk_document.getTargetId().getIri(),
+                )
 
         except JException as exception:
             raise WikidataRdfRevisionWdtkSerializationException(
