@@ -85,6 +85,9 @@ class WikidataRdfTriple(NamedTuple):
     predicate: str
     object_: str
 
+    def __str__(self) -> str:
+        return f"{self.subject} {self.predicate} {self.object_} ."
+
     # We need to reimplement equivalence and hash generation, since WDTK generates blank
     # nodes as something like "_:node1f8mm5pv5x4125", i.e., it gives them an
     # auto-generated ID. There is now way to ensure that the blank node ID for the same
@@ -214,6 +217,28 @@ class WikidataRdfRevision(WikidataRevision):
 
         wdtk_rdf_writer.finish()
 
+        # The following line parsing with checking for " ." at end of lines is sadly
+        # necessary because WDTK can output triples spanning multiple lines in rare
+        # cases. For example this happens for the item
+        # https://www.wikidata.org/w/index.php?oldid=199561928 which contains the triple
+        # wd:Q34299 wdt:P1705 "Ð¡Ð°Ñ\nÐ° ÑÑÐ»Ð°"@sah .
+        triples = []
+        line_buffer = ""
+        for line in str(java_output_stream).splitlines():
+            if not line.endswith(" ."):
+                line_buffer += line
+                continue
+
+            triples.append(
+                WikidataRdfTriple(
+                    *map(
+                        cls._prefix_ntriples_uri,
+                        (line_buffer + line)[: -len(" .")].split(" ", 2),
+                    )
+                )
+            )
+            line_buffer = ""
+
         return WikidataRdfRevision.construct(
             prefixed_title=revision.prefixed_title,
             namespace=revision.namespace,
@@ -229,12 +254,7 @@ class WikidataRdfRevision(WikidataRevision):
             content_model=revision.content_model,
             format=revision.format,
             sha1=revision.sha1,
-            triples=[
-                WikidataRdfTriple(
-                    *map(cls._prefix_ntriples_uri, line[: -len(" .")].split(" ", 2))
-                )
-                for line in str(java_output_stream).splitlines()
-            ],
+            triples=triples,
         )
 
     @classmethod
