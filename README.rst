@@ -18,6 +18,13 @@ A first release is planned for the second half of July.
 But since you found this repository already yet, why no keep an eye on it, star
 it on GitHub, and be automatically notified once it's ready? ;)
 
+Usage
+================================================================================
+
+TODO: Document that ulimits for number of open processes and number of open
+files need to be raised and how to do that (remember to also adjust my personal
+dotfile scripts for this).
+
 License
 ========================================================================================
 

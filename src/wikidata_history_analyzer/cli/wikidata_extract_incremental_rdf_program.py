@@ -51,7 +51,7 @@ _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
 class WikidataExtractIncrementalRdf(WikidataRdfRevisionProgram):
     class Config(ProgramConfig):
-        title = "wikidata-extract-rdf"
+        title = "wikidata-extract-incremental-rdf"
         version = wikidata_history_analyzer.__version__
         description = "Extract incremental RDF revisions."
 
@@ -104,7 +104,7 @@ class WikidataExtractIncrementalRdf(WikidataRdfRevisionProgram):
             / meta_history_dump.path.name
         )
         if out_dir.exists():
-            _LOGGER.info("Directory {} already exists, skipping.", out_dir)
+            _LOGGER.info("Directory {} already exists, skipping...", out_dir)
             return
 
         out_dir_tmp = out_dir.parent / (out_dir.name + ".tmp")

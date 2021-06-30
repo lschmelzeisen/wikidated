@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import gzip
 from pathlib import Path
-from typing import Iterator, Sequence, Set
+from typing import Iterator, Optional, Sequence, Set
 
 from wikidata_history_analyzer.datamodel.wikidata_rdf_revision import (
     WikidataRdfRevision,
@@ -78,10 +78,10 @@ class WikidataIncrementalRdfRevision(WikidataRevision):
     def save_iter_to_file(
         cls,
         revisions: Iterator[WikidataIncrementalRdfRevision],
-        dir_: Path,
-        page_id: int,
+        file_or_dir: Path,
+        page_id: Optional[int] = None,
     ) -> None:
-        path = cls.iter_path(dir_, page_id)
+        path = cls.iter_path(file_or_dir, page_id) if page_id else file_or_dir
         path.parent.mkdir(parents=True, exist_ok=True)
         with gzip.open(path, "wt", encoding="UTF-8") as fout:
             for revision in revisions:
@@ -90,9 +90,11 @@ class WikidataIncrementalRdfRevision(WikidataRevision):
 
     @classmethod
     def load_iter_from_file(
-        cls, dir_: Path, page_id: int
+        cls,
+        file_or_dir: Path,
+        page_id: Optional[int] = None,
     ) -> Iterator[WikidataIncrementalRdfRevision]:
-        path = cls.iter_path(dir_, page_id)
+        path = cls.iter_path(file_or_dir, page_id) if page_id else file_or_dir
         with gzip.open(path, "rt", encoding="UTF-8") as fin:
             for line in fin:
                 yield cls.parse_raw(line)
