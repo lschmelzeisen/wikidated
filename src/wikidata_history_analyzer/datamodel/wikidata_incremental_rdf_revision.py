@@ -43,13 +43,14 @@ class WikidataIncrementalRdfRevision(WikidataRevision):
                 last_page_id = revision.page_id
                 state = set()
 
-            # TODO: blank notes (important!)
-            # TODO: does it occur that blank nodes can be subjects?
             triples_set = set(revision.triples)
-            deleted_triples = state - triples_set
-            added_triples = triples_set - state
-            state -= deleted_triples
-            state |= added_triples
+            triple_deletions = state - triples_set
+            triple_additions = triples_set - state
+            # TODO: double check if we can replace this with `state = triples_set`. Main
+            #  concern would be, that auto-generated IDs of blank triples would not line
+            #  up. If it can't be replaced, document why.
+            state -= triple_deletions
+            state |= triple_additions
 
             yield WikidataIncrementalRdfRevision(
                 prefixed_title=revision.prefixed_title,
@@ -66,8 +67,8 @@ class WikidataIncrementalRdfRevision(WikidataRevision):
                 content_model=revision.content_model,
                 format=revision.format,
                 sha1=revision.sha1,
-                deleted_triples=sorted(deleted_triples),
-                added_triples=sorted(added_triples),
+                triple_deletions=sorted(triple_deletions),
+                triple_additions=sorted(triple_additions),
             )
 
     @classmethod

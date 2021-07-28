@@ -180,6 +180,10 @@ def parallelize(
         for pbar in pbars.values():
             pbar.close()
 
+    # Workaround to print lines until end of last progress bar.
+    for _ in range(num_workers):
+        _LOGGER.info("")
+
 
 _JVM_MANAGER: Optional[JvmManager] = None
 

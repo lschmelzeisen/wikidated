@@ -17,19 +17,11 @@
 
 import gzip
 from collections import defaultdict
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from logging import getLogger
 from pathlib import Path
 from sys import argv
-from typing import (
-    AbstractSet,
-    List,
-    Mapping,
-    MutableMapping,
-    MutableSequence,
-    Optional,
-    cast,
-)
+from typing import AbstractSet, Mapping, MutableMapping, MutableSequence, Optional, cast
 
 from nasty_utils import ColoredBraceStyleAdapter, ProgramConfig
 from overrides import overrides
@@ -109,8 +101,6 @@ class WikidataCollectStatisticsProgram(WikidataRdfRevisionProgram):
             max_workers=settings.num_workers,
         ):
             pass
-
-        # TODO: merge statistics
 
     @classmethod
     def _process_dump(
