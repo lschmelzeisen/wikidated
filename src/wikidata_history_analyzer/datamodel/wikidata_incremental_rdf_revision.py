@@ -28,8 +28,8 @@ from wikidata_history_analyzer.datamodel.wikidata_revision import WikidataRevisi
 
 
 class WikidataIncrementalRdfRevision(WikidataRevision):
-    deleted_triples: Sequence[WikidataRdfTriple]
-    added_triples: Sequence[WikidataRdfTriple]
+    triple_deletions: Sequence[WikidataRdfTriple]
+    triple_additions: Sequence[WikidataRdfTriple]
 
     @classmethod
     def from_rdf_revisions(

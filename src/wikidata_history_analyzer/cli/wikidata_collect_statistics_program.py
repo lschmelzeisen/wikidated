@@ -168,10 +168,12 @@ class WikidataCollectStatisticsProgram(WikidataRdfRevisionProgram):
                         revision.timestamp - last_revision_timestamp
                     )
 
-                revision_statistics.num_added_triples += len(revision.added_triples)
-                revision_statistics.num_deleted_triples += len(revision.deleted_triples)
+                revision_statistics.num_added_triples += len(revision.triple_additions)
+                revision_statistics.num_deleted_triples += len(
+                    revision.triple_deletions
+                )
 
-                for triple in revision.added_triples:
+                for triple in revision.triple_additions:
                     if triple not in num_times_triples_changed:
                         revision_statistics.subject_counter[triple.subject] += 1
                         revision_statistics.predicate_counter[triple.predicate] += 1
@@ -190,7 +192,7 @@ class WikidataCollectStatisticsProgram(WikidataRdfRevisionProgram):
                     ].append(time_since_last_change)
                     last_time_triples_changed[triple] = revision.timestamp
 
-                for triple in revision.deleted_triples:
+                for triple in revision.triple_deletions:
                     assert num_times_triples_changed[triple] % 2 == 1
                     num_times_triples_changed[triple] += 1
 

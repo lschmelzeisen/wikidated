@@ -34,13 +34,16 @@
 import gzip
 from datetime import date, datetime, timedelta
 from logging import getLogger
-from math import ceil, log10
+from math import ceil, sqrt
 from pathlib import Path
-from sys import argv
-from typing import Counter, Tuple, Union, cast
+from sys import argv, stdout
+from typing import Counter, Optional, Sequence, Tuple, Union, cast
 
+import numpy as np
 from nasty_utils import ColoredBraceStyleAdapter, ProgramConfig
 from overrides import overrides
+from statsmodels.stats.weightstats import DescrStatsW  # type: ignore
+from welford import Welford  # type: ignore
 
 import wikidata_history_analyzer
 from wikidata_history_analyzer._paths import wikidata_incremental_rdf_revision_dir
@@ -63,10 +66,6 @@ from wikidata_history_analyzer.dumpfiles.wikidata_meta_history_dump import (
 )
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
-
-_SECS_IN_MIN = 60
-_SECS_IN_HOUR = 60 * 60
-_DAYS_IN_MONTH = 30
 
 _SECOND = timedelta(seconds=1)
 _MINUTE = timedelta(minutes=1)
@@ -99,29 +98,68 @@ class WikidataCollectStatisticsProgram(WikidataRdfRevisionProgram):
 
         agg_num_entities_per_month = Counter[date]()
         agg_num_revisions_per_month = Counter[date]()
-        agg_num_revisions_per_entity_histogram = Counter[float]()
-        agg_time_between_revisions_histogram = Counter[float]()
-        agg_num_triple_additions_per_revision_histogram = Counter[int]()
-        agg_num_triple_deletions_histogram = Counter[int]()
-        agg_num_triple_changes_histogram = Counter[int]()
-        agg_time_until_triple_inserted = Counter[float]()
-        agg_time_until_triple_deleted = Counter[float]()
-        agg_time_until_triple_oscillated = Counter[float]()
+        agg_num_revisions_per_entity = Counter[int]()
+        agg_num_revisions_per_entity_welford = None
+        agg_time_between_revisions = Counter[int]()
+        agg_days_between_revisions = Counter[int]()
+        agg_time_between_revisions_welford = None
+        agg_num_triple_additions_per_revision = Counter[int]()
+        agg_num_triple_additions_per_revision_welford = None
+        agg_num_triple_deletions_per_revision = Counter[int]()
+        agg_num_triple_deletions_per_revision_welford = None
+        agg_num_triple_changes = Counter[int]()
+        agg_days_until_triple_inserted = Counter[int]()
+        agg_time_until_triple_inserted_welford = None
+        agg_days_until_triple_deleted = Counter[int]()
+        agg_time_until_triple_deleted_welford = None
+        agg_days_until_triple_oscillated = Counter[int]()
+        agg_time_until_triple_oscillated_welford = None
 
         for (
             num_entities_per_month,
             num_revisions_per_month,
-            num_revisions_per_entity_histogram,
-            time_between_revisions_histogram,
-            num_triple_additions_per_revision_histogram,
-            num_triple_deletions_per_revision_histogram,
-            num_triple_changes_histogram,
-            time_until_triple_inserted,
-            time_until_triple_deleted,
-            time_until_triple_oscillated,
+            num_revisions_per_entity,
+            num_revisions_per_entity_welford,
+            time_between_revisions,
+            days_between_revisions,
+            time_between_revisions_welford,
+            num_triple_additions_per_revision,
+            num_triple_additions_per_revision_welford,
+            num_triple_deletions_per_revision,
+            num_triple_deletions_per_revision_welford,
+            num_triple_changes,
+            days_until_triple_inserted,
+            time_until_triple_inserted_welford,
+            days_until_triple_deleted,
+            time_until_triple_deleted_welford,
+            days_until_triple_oscillated,
+            time_until_triple_oscillated_welford,
         ) in parallelize(
             cast(
-                ParallelizeCallback[WikidataMetaHistoryDump, None], self._process_dump
+                ParallelizeCallback[
+                    WikidataMetaHistoryDump,
+                    Tuple[
+                        Counter[date],
+                        Counter[date],
+                        Counter[int],
+                        Welford,
+                        Counter[int],
+                        Counter[int],
+                        Welford,
+                        Counter[int],
+                        Welford,
+                        Counter[int],
+                        Welford,
+                        Counter[int],
+                        Counter[int],
+                        Welford,
+                        Counter[int],
+                        Welford,
+                        Counter[int],
+                        Welford,
+                    ],
+                ],
+                self._process_dump,
             ),
             meta_history_dumps,
             extra_arguments={
@@ -132,234 +170,305 @@ class WikidataCollectStatisticsProgram(WikidataRdfRevisionProgram):
         ):
             agg_num_entities_per_month += num_entities_per_month
             agg_num_revisions_per_month += num_revisions_per_month
-            agg_num_revisions_per_entity_histogram += num_revisions_per_entity_histogram
-            agg_time_between_revisions_histogram += time_between_revisions_histogram
-            agg_num_triple_additions_per_revision_histogram += (
-                num_triple_additions_per_revision_histogram
+
+            agg_num_revisions_per_entity += num_revisions_per_entity
+            if agg_num_revisions_per_entity_welford is None:
+                agg_num_revisions_per_entity_welford = num_revisions_per_entity_welford
+            else:
+                agg_num_revisions_per_entity_welford.merge(
+                    num_revisions_per_entity_welford
+                )
+
+            agg_time_between_revisions += time_between_revisions
+            agg_days_between_revisions += days_between_revisions
+            if agg_time_between_revisions_welford is None:
+                agg_time_between_revisions_welford = time_between_revisions_welford
+            else:
+                agg_time_between_revisions_welford.merge(time_between_revisions_welford)
+
+            agg_num_triple_additions_per_revision += num_triple_additions_per_revision
+            if agg_num_triple_additions_per_revision_welford is None:
+                agg_num_triple_additions_per_revision_welford = (
+                    num_triple_additions_per_revision_welford
+                )
+            else:
+                agg_num_triple_additions_per_revision_welford.merge(
+                    num_triple_additions_per_revision_welford
+                )
+
+            agg_num_triple_deletions_per_revision += num_triple_deletions_per_revision
+            if agg_num_triple_deletions_per_revision_welford is None:
+                agg_num_triple_deletions_per_revision_welford = (
+                    num_triple_deletions_per_revision_welford
+                )
+            else:
+                agg_num_triple_deletions_per_revision_welford.merge(
+                    num_triple_deletions_per_revision_welford
+                )
+
+            agg_num_triple_changes += num_triple_changes
+
+            agg_days_until_triple_inserted += days_until_triple_inserted
+            if agg_time_until_triple_inserted_welford is None:
+                agg_time_until_triple_inserted_welford = (
+                    time_until_triple_inserted_welford
+                )
+            else:
+                agg_time_until_triple_inserted_welford.merge(
+                    time_until_triple_inserted_welford
+                )
+
+            agg_days_until_triple_deleted += days_until_triple_deleted
+            if agg_time_until_triple_deleted_welford is None:
+                agg_time_until_triple_deleted_welford = (
+                    time_until_triple_deleted_welford
+                )
+            else:
+                agg_time_until_triple_deleted_welford.merge(
+                    time_until_triple_deleted_welford
+                )
+
+            agg_days_until_triple_oscillated += days_until_triple_oscillated
+            if agg_time_until_triple_oscillated_welford is None:
+                agg_time_until_triple_oscillated_welford = (
+                    time_until_triple_oscillated_welford
+                )
+            else:
+                agg_time_until_triple_oscillated_welford.merge(
+                    time_until_triple_oscillated_welford
+                )
+
+        def print_figure_name(name: str) -> None:
+            stdout.write(f"\nfigures/{name}.tex\n")
+
+        def print_figure_desc(desc: str) -> None:
+            stdout.write(f"  {desc}\n")
+
+        def print_histogram_raw(
+            name: str, histogram: Union[Counter[int], Counter[date]]
+        ) -> None:
+            stdout.write(f"  {name} = {{\n")
+            keys = sorted(histogram.keys())
+            for key in keys:
+                key_str = (
+                    str(key)
+                    if not isinstance(key, date)
+                    else f"date({key.year}, {key.month}, {key.day})"
+                )
+                value = histogram[key]
+                stdout.write(f"    {key_str}: {value},\n")
+            stdout.write("  }\n")
+
+        def print_histogram_binned(
+            *,
+            histogram: Counter[int],
+            ranges: Sequence[Tuple[Optional[int], Optional[int]]],
+            normalize: bool,
+            precision: int,
+        ) -> None:
+            normalization_factor = sum(histogram.values()) if normalize else 1
+            key_min = min(histogram.keys())
+            key_max = max(histogram.keys())
+            values = (
+                sum(
+                    histogram[key] / normalization_factor
+                    for key in range(
+                        lower_bound if lower_bound is not None else key_min,
+                        (upper_bound if upper_bound is not None else key_max) + 1,
+                    )
+                )
+                for lower_bound, upper_bound in ranges
             )
-            agg_num_triple_deletions_histogram += (
-                num_triple_deletions_per_revision_histogram
+            for i, value in enumerate(values):
+                stdout.write(f"    ({i}," + f"{{:.{precision}f}}".format(value) + ")\n")
+
+        def print_histogram_statistics(histogram: Counter[int]) -> None:
+            # Not setting `ddof=1` here to not use Bessel's correction since we are
+            # calculating the standard deviation over the entire population of all
+            # revisions and not just a sample of it.
+            stats = DescrStatsW(
+                data=np.array(list(histogram.keys()), dtype=np.float32),
+                weights=np.array(list(histogram.values()), dtype=np.float32),
             )
-            agg_num_triple_changes_histogram += num_triple_changes_histogram
-            agg_time_until_triple_inserted += time_until_triple_inserted
-            agg_time_until_triple_deleted += time_until_triple_deleted
-            agg_time_until_triple_oscillated += time_until_triple_oscillated
+            stdout.write(f"    mean: {float(stats.mean):.4f}\n")
+            stdout.write(f"    std: {float(stats.std):.4f}\n")
+            stdout.write(f"    std_mean: {float(stats.std_mean):.4f}\n")
+            stdout.write(f"    1%-quantile: {int(stats.quantile(0.01))}\n")
+            stdout.write(f"    2.5%-quantile: {int(stats.quantile(0.025))}\n")
+            stdout.write(f"    25%-quantile: {int(stats.quantile(0.25))}\n")
+            stdout.write(f"    median: {int(stats.quantile(0.5))}\n")
+            stdout.write(f"    75%-quantile: {int(stats.quantile(0.75))}\n")
+            stdout.write(f"    97.5%-quantile: {int(stats.quantile(0.975))}\n")
+            stdout.write(f"    99%-quantile: {int(stats.quantile(0.99))}\n")
+
+        def print_welford_statistics(welford: Welford) -> None:
+            # Using `var_s` instead of `var_p` here for same reason as in
+            # print_histogram_statistics().
+            stdout.write(f"    welford mean: {welford.mean.item()}\n")
+            stdout.write(f"    welford std: {sqrt(welford.var_s.item())}\n")
 
         # ==============================================================================
-        print()
-        print("figures/num-dels-per-triple.tex")
-        print("  agg_num_triple_changes_histogram = {")  # -----------------------------
-        for k in sorted(agg_num_triple_changes_histogram.keys()):
-            print(f"    {k}: {agg_num_triple_changes_histogram[k]},")
-        print("  }")
-        ks = [1, 2, 4, 20]
-        vs = {
+        print_figure_name("num-dels-per-triple")
+        print_histogram_raw(
+            "agg_num_triple_changes",
+            agg_num_triple_changes,
+        )
+        keys = [1, 2, 4, 20]
+        values = {
             i: (
-                agg_num_triple_changes_histogram[ks[i]]
-                - (
-                    agg_num_triple_changes_histogram[ks[i + 1]]
-                    if i != len(ks) - 1
-                    else 0
-                )
+                agg_num_triple_changes[keys[i]]
+                - (agg_num_triple_changes[keys[i + 1]] if i != len(keys) - 1 else 0)
             )
-            for i in range(len(ks))
+            for i in range(len(keys))
         }
-        print("  \\addplot")  # --------------------------------------------------------
-        for k, v in vs.items():
-            print(f"    ({k},{v})")
-        print("  \\draw")  # -----------------------------------------------------------
-        for k, v in vs.items():
-            print(f"    (axis cs:{k},{v}) node {{{v}}}")
+        print_figure_desc("\\addplot")
+        for key, value in values.items():
+            stdout.write(f"    ({key},{value})\n")
+        print_figure_desc("\\desc")
+        for key, value in values.items():
+            stdout.write(f"    (axis cs:{key},{value}) node {{{value}}}\n")
 
         # ==============================================================================
-        print()
-        print("figures/num-entities-revisions-over-time.tex")
-        print("  agg_num_entities_per_month = {")  # -----------------------------------
-        for d in sorted(agg_num_entities_per_month.keys()):
-            v = agg_num_entities_per_month[d]
-            print(f"    date({d.year},{d.month},{d.day}): {v},")
-        print("  }")
-        print("  agg_num_revisions_per_month = {")  # ----------------------------------
-        for d in sorted(agg_num_revisions_per_month.keys()):
-            v = agg_num_revisions_per_month[d]
-            print(f"    date({d.year},{d.month},{d.day}): {v},")
-        print("  }")
-        vs = {}
-        for y in range(2012, 2021):
-            vs[y] = (vs[y - 1] if y != 2012 else 0) + sum(
-                agg_num_revisions_per_month[date(y, m, 1)] for m in range(1, 13)
+        print_figure_name("num-entities-revisions-over-time")
+        print_histogram_raw(
+            "agg_num_entities_per_month",
+            agg_num_entities_per_month,
+        )
+        print_histogram_raw(
+            "agg_num_revisions_per_month",
+            agg_num_revisions_per_month,
+        )
+        values = {}
+        for year in range(2012, 2021):
+            values[year] = (values[year - 1] if year != 2012 else 0) + sum(
+                agg_num_revisions_per_month[date(year, month, 1)]
+                for month in range(1, 12 + 1)
             )
-        print("  \\addplot (revisions)")  # --------------------------------------------
-        for k, v in vs.items():
-            print(f"    ({k}-01-01,{v})")
-        vs = {}
-        for y in range(2012, 2021):
-            vs[y] = (vs[y - 1] if y != 2012 else 0) + sum(
-                agg_num_entities_per_month[date(y, m, 1)] for m in range(1, 13)
+        print_figure_desc("\\addplot (revisions)")
+        for key, value in values.items():
+            stdout.write(f"    ({key}-01-01,{value})\n")
+        values = {}
+        for year in range(2012, 2021):
+            values[year] = (values[year - 1] if year != 2012 else 0) + sum(
+                agg_num_entities_per_month[date(year, month, 1)]
+                for month in range(1, 12 + 1)
             )
-        print("  \\addplot (entities)")  # ---------------------------------------------
-        for k, v in vs.items():
-            print(f"    ({k}-01-01,{v})")
-        print("Total number of entities:", sum(agg_num_entities_per_month.values()))
-        print("Total number of revisions:", sum(agg_num_revisions_per_month.values()))
+        print_figure_desc("\\addplot (entities)")
+        for key, value in values.items():
+            stdout.write(f"    ({key}-01-01,{value})\n")
+        stdout.write(
+            f"Total number of entities: {sum(agg_num_entities_per_month.values())}\n"
+        )
+        stdout.write(
+            f"Total number of revisions: {sum(agg_num_revisions_per_month.values())}\n"
+        )
 
         # ==============================================================================
-        print()
-        print("figures/num-revisions-per-entity.tex")
-        print("  agg_num_revisions_per_entity_histogram = {")  # -----------------------
-        for k in sorted(agg_num_revisions_per_entity_histogram.keys()):
-            print(f"    {k}: {agg_num_revisions_per_entity_histogram[k]},")
-        print("  }")
-        s = sum(agg_num_revisions_per_entity_histogram.values())
-        vs = {
-            k: agg_num_revisions_per_entity_histogram[k] / s
-            for k in range(
-                0, max(5, max(agg_num_revisions_per_entity_histogram.keys())) + 1
+        print_figure_name("num-revisions-per-entity")
+        print_histogram_raw(
+            "agg_num_revisions_per_entity_histogram",
+            agg_num_revisions_per_entity,
+        )
+        print_figure_desc("\\addplot")
+        print_histogram_binned(
+            histogram=agg_num_revisions_per_entity,
+            ranges=[(1, 1), (2, 9), (10, 99), (100, None)],
+            normalize=True,
+            precision=3,
+        )
+        print_figure_desc("statistics")
+        print_histogram_statistics(agg_num_revisions_per_entity)
+        print_welford_statistics(agg_num_revisions_per_entity_welford)
+
+        # ==============================================================================
+        print_figure_name("num-triple-adds-dels-per-revision")
+        print_histogram_raw(
+            "agg_num_triple_additions_per_revision_histogram",
+            agg_num_triple_additions_per_revision,
+        )
+        print_histogram_raw(
+            "agg_num_triple_deletions_histogram",
+            agg_num_triple_deletions_per_revision,
+        )
+        print_figure_desc("\\addplot (additions)")
+        print_histogram_binned(
+            histogram=agg_num_triple_additions_per_revision,
+            ranges=[(0, 0), (1, 1), (2, 9), (10, None)],
+            normalize=True,
+            precision=2,
+        )
+        print_figure_desc("\\addplot (deletions)")
+        print_histogram_binned(
+            histogram=agg_num_triple_deletions_per_revision,
+            ranges=[(0, 0), (1, 1), (2, 9), (10, None)],
+            normalize=True,
+            precision=2,
+        )
+        print_figure_desc("statistics (additions)")
+        print_histogram_statistics(agg_num_triple_additions_per_revision)
+        print_welford_statistics(agg_num_triple_additions_per_revision_welford)
+        print_figure_desc("statistics (deletions)")
+        print_histogram_statistics(agg_num_triple_deletions_per_revision)
+        print_welford_statistics(agg_num_triple_deletions_per_revision_welford)
+
+        # ==============================================================================
+        print_figure_name("time-between-revisions")
+        print_histogram_raw(
+            "agg_time_between_revisions_histogram",
+            agg_time_between_revisions,
+        )
+        normalization_factor = sum(agg_time_between_revisions.values())
+        values = {
+            key: agg_time_between_revisions[key] / normalization_factor
+            for key in range(0, 8)
+        }
+        print_figure_desc("\\addplot")
+        for key, value in values.items():
+            stdout.write(f"    ({key},{value:.4f})\n")
+        stdout.write(f"    ({key + 1},{value:.4f})\n")
+        print_figure_desc("\\draw")
+        for key, value in values.items():
+            stdout.write(
+                f"    (axis cs: {key + 0.5},{value:.4f}) node {{{value * 100:.1f}\\%}}\n"
             )
-        }
-        print("  \\addplot")  # --------------------------------------------------------
-        for k, v in vs.items():
-            print(f"    ({k},{v:.2f})")
-        print(f"    ({k + 1},{v:.2f})")
-        print("  \\draw")  # -----------------------------------------------------------
-        for k, v in vs.items():
-            print(f"    (axis cs: {k + 0.5},{v:.2f}) node {{{v*100:.0f}\\%}}")
+        print_figure_desc("statistics")
+        print_histogram_statistics(agg_days_between_revisions)
+        print_welford_statistics(agg_time_between_revisions_welford)
 
         # ==============================================================================
-        print()
-        print("figures/num-triple-adds-dels-per-revision.tex")
-        print("  agg_num_triple_additions_per_revision_histogram = {")  # --------------
-        for k in sorted(agg_num_triple_additions_per_revision_histogram.keys()):
-            print(f"    {k}: {agg_num_triple_additions_per_revision_histogram[k]},")
-        print("  }")
-        print("  agg_num_triple_deletions_histogram = {")  # --------------
-        for k in sorted(agg_num_triple_deletions_histogram.keys()):
-            print(f"    {k}: {agg_num_triple_deletions_histogram[k]},")
-        print("  }")
-        s = sum(agg_num_triple_additions_per_revision_histogram.values())
-        vs = {
-            0: agg_num_triple_additions_per_revision_histogram[0] / s,
-            1: agg_num_triple_additions_per_revision_histogram[1] / s,
-            2: (
-                sum(
-                    agg_num_triple_additions_per_revision_histogram[i]
-                    for i in range(2, 9 + 1)
-                )
-                / s
-            ),
-            3: (
-                sum(
-                    agg_num_triple_additions_per_revision_histogram[i]
-                    for i in range(10, 19 + 1)
-                )
-                / s
-            ),
-            4: (
-                sum(
-                    agg_num_triple_additions_per_revision_histogram[i]
-                    for i in range(
-                        20,
-                        max(agg_num_triple_additions_per_revision_histogram.keys()) + 1,
-                    )
-                )
-                / s
-            ),
-        }
-        print("  \\addplot (additions)")  # --------------------------------------------
-        for k, v in vs.items():
-            print(f"    ({k},{v:.2f})")
-        vs = {
-            0: agg_num_triple_deletions_histogram[0] / s,
-            1: agg_num_triple_deletions_histogram[1] / s,
-            2: (
-                sum(agg_num_triple_deletions_histogram[i] for i in range(2, 9 + 1)) / s
-            ),
-            3: (
-                sum(agg_num_triple_deletions_histogram[i] for i in range(10, 19 + 1))
-                / s
-            ),
-            4: (
-                sum(
-                    agg_num_triple_deletions_histogram[i]
-                    for i in range(
-                        20,
-                        max(agg_num_triple_deletions_histogram.keys()) + 1,
-                    )
-                )
-                / s
-            ),
-        }
-        print("  \\addplot (deletions)")  # --------------------------------------------
-        for k, v in vs.items():
-            print(f"    ({k},{v:.2f})")
-
-        # ==============================================================================
-        print()
-        print("figures/time-between-revisions.text")
-        print("  agg_time_between_revisions_histogram = {")  # -------------------------
-        for k in sorted(agg_time_between_revisions_histogram.keys()):
-            print(f"    {k}: {agg_time_between_revisions_histogram[k]},")
-        print("  }")
-        s = sum(agg_time_between_revisions_histogram.values())
-        vs = {k: agg_time_between_revisions_histogram[k] / s for k in range(0, 8)}
-        print("  \\addplot")  # --------------------------------------------------------
-        for k, v in vs.items():
-            print(f"    ({k},{v:.2f})")
-        print(f"    ({k + 1},{v:.2f})")
-        print("  \\draw")  # -----------------------------------------------------------
-        for k, v in vs.items():
-            print(f"    (axis cs: {k + 0.5},{v:.2f}) node {{{v*100:.0f}\\%}}")
-
-        # ==============================================================================
-        print()
-        print("figures/time-until-triple-add-del.tex")
-        print("  agg_time_until_triple_inserted = {")  # -------------------------------
-        for k in sorted(agg_time_until_triple_inserted.keys()):
-            print(f"    {k}: {agg_time_until_triple_inserted[k]},")
-        print("  }")
-        print("  agg_time_until_triple_deleted = {")  # --------------------------------
-        for k in sorted(agg_time_until_triple_deleted.keys()):
-            print(f"    {k}: {agg_time_until_triple_deleted[k]},")
-        print("  agg_time_until_triple_oscillated = {")  # -----------------------------
-        for k in sorted(agg_time_until_triple_oscillated.keys()):
-            print(f"    {k}: {agg_time_until_triple_oscillated[k]},")
-        print("  }")
-        s = sum(agg_time_until_triple_inserted.values())
-        vs = {
-            1: agg_time_until_triple_inserted[1] / s,
-            2: (sum(agg_time_until_triple_inserted[i] for i in range(2, 30 + 1)) / s),
-            3: (sum(agg_time_until_triple_inserted[i] for i in range(31, 180 + 1)) / s),
-            4: (
-                sum(agg_time_until_triple_inserted[i] for i in range(181, 365 + 1)) / s
-            ),
-            5: (
-                sum(
-                    agg_time_until_triple_inserted[i]
-                    for i in range(366, max(agg_time_until_triple_inserted.keys()) + 1)
-                )
-                / s
-            ),
-        }
-        print("  \\addplot (additions)")  # --------------------------------------------
-        for k, v in vs.items():
-            print(f"    ({k},{v:.2f})")
-        s = sum(agg_time_until_triple_deleted.values())
-        vs = {
-            1: agg_time_until_triple_deleted[1] / s,
-            2: (sum(agg_time_until_triple_deleted[i] for i in range(2, 30 + 1)) / s),
-            3: (sum(agg_time_until_triple_deleted[i] for i in range(31, 180 + 1)) / s),
-            4: (sum(agg_time_until_triple_deleted[i] for i in range(181, 365 + 1)) / s),
-            5: (
-                sum(
-                    agg_time_until_triple_deleted[i]
-                    for i in range(366, max(agg_time_until_triple_deleted.keys()) + 1)
-                )
-                / s
-            ),
-        }
-        print("  \\addplot (deletions)")  # --------------------------------------------
-        for k, v in vs.items():
-            print(f"    ({k},{v:.2f})")
+        print_figure_name("time-until-triple-add-del")
+        print_histogram_raw(
+            "agg_time_until_triple_inserted",
+            agg_days_until_triple_inserted,
+        )
+        print_histogram_raw(
+            "agg_time_until_triple_deleted",
+            agg_days_until_triple_deleted,
+        )
+        print_histogram_raw(
+            "agg_time_until_triple_oscillated",
+            agg_days_until_triple_oscillated,
+        )
+        print_figure_desc("\\addplot (additions)")
+        print_histogram_binned(
+            histogram=agg_days_until_triple_inserted,
+            ranges=[(1, 1), (2, 30), (31, 180), (181, 165), (366, None)],
+            normalize=True,
+            precision=2,
+        )
+        print_figure_desc("\\addplot (deletions)")
+        print_histogram_binned(
+            histogram=agg_days_until_triple_deleted,
+            ranges=[(1, 1), (2, 30), (31, 180), (181, 165), (366, None)],
+            normalize=True,
+            precision=2,
+        )
+        print_figure_desc("statistics (additions)")
+        print_histogram_statistics(agg_days_until_triple_inserted)
+        print_welford_statistics(agg_time_until_triple_inserted_welford)
+        print_figure_desc("statistics (deletions)")
+        print_histogram_statistics(agg_days_until_triple_deleted)
+        print_welford_statistics(agg_time_until_triple_deleted_welford)
 
     @classmethod
     def _process_dump(
@@ -372,14 +481,22 @@ class WikidataCollectStatisticsProgram(WikidataRdfRevisionProgram):
     ) -> Tuple[
         Counter[date],
         Counter[date],
-        Counter[float],
+        Counter[int],
+        Welford,
         Counter[int],
         Counter[int],
+        Welford,
+        Counter[int],
+        Welford,
+        Counter[int],
+        Welford,
         Counter[int],
         Counter[int],
-        Counter[float],
-        Counter[float],
-        Counter[float],
+        Welford,
+        Counter[int],
+        Welford,
+        Counter[int],
+        Welford,
     ]:
         statistics_file = wikidata_incremental_rdf_revision_dir(data_dir) / (
             meta_history_dump.path.name + ".statistics.json.gz"
@@ -393,19 +510,26 @@ class WikidataCollectStatisticsProgram(WikidataRdfRevisionProgram):
 
         num_entities_per_month = Counter[date]()
         num_revisions_per_month = Counter[date]()
-        num_revisions_per_entity_histogram = Counter[float]()
-        time_between_revisions_histogram = Counter[int]()
-        num_triple_additions_per_revision_histogram = Counter[int]()
-        num_triple_deletions_per_revision_histogram = Counter[int]()
-        num_triple_changes_histogram = Counter[int]()
-        time_until_triple_inserted = Counter[float]()
-        time_until_triple_deleted = Counter[float]()
-        time_until_triple_oscillated = Counter[float]()
+        num_revisions_per_entity = Counter[int]()
+        num_revisions_per_entity_welford = Welford()
+        time_between_revisions = Counter[int]()
+        days_between_revisions = Counter[int]()
+        time_between_revisions_welford = Welford()
+        num_triple_additions_per_revision = Counter[int]()
+        num_triple_additions_per_revision_welford = Welford()
+        num_triple_deletions_per_revision = Counter[int]()
+        num_triple_deletions_per_revision_welford = Welford()
+        num_triple_changes = Counter[int]()
+        days_until_triple_inserted = Counter[int]()
+        time_until_triple_inserted_welford = Welford()
+        days_until_triple_deleted = Counter[int]()
+        time_until_triple_deleted_welford = Welford()
+        days_until_triple_oscillated = Counter[int]()
+        time_until_triple_oscillated_welford = Welford()
 
         for num_revisions in statistics.num_revisions_per_page:
-            num_revisions_per_entity_histogram[
-                ceil(log10(num_revisions)) if num_revisions != 0 else 0
-            ] += 1
+            num_revisions_per_entity[num_revisions] += 1
+            num_revisions_per_entity_welford.add(np.array([num_revisions]))
 
         for month_string, revision_statistics in statistics.per_month.items():
             month = datetime.strptime(month_string, "%Y-%m").date()
@@ -434,66 +558,76 @@ class WikidataCollectStatisticsProgram(WikidataRdfRevisionProgram):
                         b = 6
                     else:
                         b = 7
-                    time_between_revisions_histogram[b] += 1
+                    time_between_revisions[b] += 1
+                    days_between_revisions[
+                        max(ceil(time_since_last_revision / _DAY), 1)
+                    ] += 1
+                    time_between_revisions_welford.add(
+                        np.array([time_since_last_revision.total_seconds()])
+                    )
 
-                num_triple_additions_per_revision_histogram[
+                num_triple_additions_per_revision[
                     revision_statistic.num_added_triples
                 ] += 1
-                num_triple_deletions_per_revision_histogram[
+                num_triple_additions_per_revision_welford.add(
+                    np.array([revision_statistic.num_added_triples])
+                )
+                num_triple_deletions_per_revision[
                     revision_statistic.num_deleted_triples
                 ] += 1
+                num_triple_deletions_per_revision_welford.add(
+                    np.array([revision_statistic.num_deleted_triples])
+                )
 
                 for (
-                    num_triple_changes,
+                    num_triple_changes_value,
                     times_since_last_change,
                 ) in (
                     revision_statistic.num_triple_changes_to_time_since_last_change.items()
                 ):
-                    num_triple_changes_histogram[num_triple_changes] += len(
+                    num_triple_changes[num_triple_changes_value] += len(
                         times_since_last_change
                     )
                     for time_since_last_change in times_since_last_change:
                         b = max(ceil(time_since_last_change / _DAY), 1)
-                        if num_triple_changes == 1:
-                            time_until_triple_inserted[b] += 1
-                        elif num_triple_changes == 2:
-                            time_until_triple_deleted[b] += 1
+                        if num_triple_changes_value == 1:
+                            days_until_triple_inserted[b] += 1
+                            time_until_triple_inserted_welford.add(
+                                np.array([time_since_last_change.total_seconds()])
+                            )
+                        elif num_triple_changes_value == 2:
+                            days_until_triple_deleted[b] += 1
+                            time_until_triple_deleted_welford.add(
+                                np.array([time_since_last_change.total_seconds()])
+                            )
                         else:
-                            time_until_triple_oscillated[b] += 1
+                            days_until_triple_oscillated[b] += 1
+                            time_until_triple_oscillated_welford.add(
+                                np.array([time_since_last_change.total_seconds()])
+                            )
 
         progress_callback(meta_history_dump.path.name, 1, 1)
 
         return (
             num_entities_per_month,
             num_revisions_per_month,
-            num_revisions_per_entity_histogram,
-            time_between_revisions_histogram,
-            num_triple_additions_per_revision_histogram,
-            num_triple_deletions_per_revision_histogram,
-            num_triple_changes_histogram,
-            time_until_triple_inserted,
-            time_until_triple_deleted,
-            time_until_triple_oscillated,
+            num_revisions_per_entity,
+            num_revisions_per_entity_welford,
+            time_between_revisions,
+            days_between_revisions,
+            time_between_revisions_welford,
+            num_triple_additions_per_revision,
+            num_triple_additions_per_revision_welford,
+            num_triple_deletions_per_revision,
+            num_triple_deletions_per_revision_welford,
+            num_triple_changes,
+            days_until_triple_inserted,
+            time_until_triple_inserted_welford,
+            days_until_triple_deleted,
+            time_until_triple_deleted_welford,
+            days_until_triple_oscillated,
+            time_until_triple_oscillated_welford,
         )
-
-    @classmethod
-    def _log_bin_frequency(cls, value: Union[int, float]) -> float:
-        return round(log10(value), 1) if value != 0 else 0
-
-    @classmethod
-    def _format_binned_timedelta(cls, value: timedelta) -> str:
-        if value >= _YEAR:
-            return f"{value / _YEAR} years"
-        elif value >= _MONTH:
-            return f"{value / _MONTH} months"
-        elif value >= _DAY:
-            return f"{value / _DAY} days"
-        elif value >= _HOUR:
-            return f"{value / _HOUR} hours"
-        elif value >= _MINUTE:
-            return f"{value / _MINUTE} minutes"
-        else:
-            return f"{value / _SECOND} seconds"
 
 
 def main(*args: str) -> None:
