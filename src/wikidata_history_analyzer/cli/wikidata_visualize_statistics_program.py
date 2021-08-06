@@ -304,8 +304,8 @@ class WikidataCollectStatisticsProgram(WikidataRdfRevisionProgram):
         def print_welford_statistics(welford: Welford) -> None:
             # Using `var_s` instead of `var_p` here for same reason as in
             # print_histogram_statistics().
-            stdout.write(f"    welford mean: {welford.mean.item()}\n")
-            stdout.write(f"    welford std: {sqrt(welford.var_s.item())}\n")
+            stdout.write(f"    welford mean: {welford.mean.item():.4f}\n")
+            stdout.write(f"    welford std: {sqrt(welford.var_s.item()):.4f}\n")
 
         # ==============================================================================
         print_figure_name("num-dels-per-triple")
@@ -313,20 +313,25 @@ class WikidataCollectStatisticsProgram(WikidataRdfRevisionProgram):
             "agg_num_triple_changes",
             agg_num_triple_changes,
         )
-        keys = [1, 2, 4, 20]
-        values = {
-            i: (
-                agg_num_triple_changes[keys[i]]
-                - (agg_num_triple_changes[keys[i + 1]] if i != len(keys) - 1 else 0)
-            )
-            for i in range(len(keys))
-        }
+        agg_num_dels_per_triple = Counter[int]()
+        agg_num_dels_per_triple[0] = (
+            agg_num_triple_changes[1] - agg_num_triple_changes[2]
+        )
+        for i in range(2, max(agg_num_triple_changes.keys()) + 1, 2):
+            value = agg_num_triple_changes[i] - agg_num_triple_changes[i + 2]
+            if value:
+                agg_num_dels_per_triple[i // 2] = value
         print_figure_desc("\\addplot")
-        for key, value in values.items():
-            stdout.write(f"    ({key},{value})\n")
+        print_histogram_binned(
+            histogram=agg_num_dels_per_triple,
+            ranges=[(0, 0), (1, 1), (2, 9), (10, None)],
+            normalize=False,
+            precision=0,
+        )
         print_figure_desc("\\desc")
-        for key, value in values.items():
-            stdout.write(f"    (axis cs:{key},{value}) node {{{value}}}\n")
+        stdout.write("    Need to do manually.\n")
+        print_figure_desc("statistics")
+        print_histogram_statistics(agg_num_dels_per_triple)
 
         # ==============================================================================
         print_figure_name("num-entities-revisions-over-time")
@@ -366,7 +371,7 @@ class WikidataCollectStatisticsProgram(WikidataRdfRevisionProgram):
         # ==============================================================================
         print_figure_name("num-revisions-per-entity")
         print_histogram_raw(
-            "agg_num_revisions_per_entity_histogram",
+            "agg_num_revisions_per_entity",
             agg_num_revisions_per_entity,
         )
         print_figure_desc("\\addplot")
@@ -383,11 +388,11 @@ class WikidataCollectStatisticsProgram(WikidataRdfRevisionProgram):
         # ==============================================================================
         print_figure_name("num-triple-adds-dels-per-revision")
         print_histogram_raw(
-            "agg_num_triple_additions_per_revision_histogram",
+            "agg_num_triple_additions_per_revision",
             agg_num_triple_additions_per_revision,
         )
         print_histogram_raw(
-            "agg_num_triple_deletions_histogram",
+            "agg_num_triple_deletions_per_revision",
             agg_num_triple_deletions_per_revision,
         )
         print_figure_desc("\\addplot (additions)")
@@ -414,7 +419,7 @@ class WikidataCollectStatisticsProgram(WikidataRdfRevisionProgram):
         # ==============================================================================
         print_figure_name("time-between-revisions")
         print_histogram_raw(
-            "agg_time_between_revisions_histogram",
+            "agg_time_between_revisions",
             agg_time_between_revisions,
         )
         normalization_factor = sum(agg_time_between_revisions.values())
@@ -438,28 +443,28 @@ class WikidataCollectStatisticsProgram(WikidataRdfRevisionProgram):
         # ==============================================================================
         print_figure_name("time-until-triple-add-del")
         print_histogram_raw(
-            "agg_time_until_triple_inserted",
+            "agg_days_until_triple_inserted",
             agg_days_until_triple_inserted,
         )
         print_histogram_raw(
-            "agg_time_until_triple_deleted",
+            "agg_days_until_triple_deleted",
             agg_days_until_triple_deleted,
         )
         print_histogram_raw(
-            "agg_time_until_triple_oscillated",
+            "agg_days_until_triple_oscillated",
             agg_days_until_triple_oscillated,
         )
         print_figure_desc("\\addplot (additions)")
         print_histogram_binned(
             histogram=agg_days_until_triple_inserted,
-            ranges=[(1, 1), (2, 30), (31, 180), (181, 165), (366, None)],
+            ranges=[(1, 1), (2, 30), (31, 180), (181, 365), (366, None)],
             normalize=True,
             precision=2,
         )
         print_figure_desc("\\addplot (deletions)")
         print_histogram_binned(
             histogram=agg_days_until_triple_deleted,
-            ranges=[(1, 1), (2, 30), (31, 180), (181, 165), (366, None)],
+            ranges=[(1, 1), (2, 30), (31, 180), (181, 365), (366, None)],
             normalize=True,
             precision=2,
         )
