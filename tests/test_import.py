@@ -14,6 +14,6 @@
 # limitations under the License.
 #
 
-from setuptools import setup
 
-setup()
+def test_import() -> None:
+    import wikidated  # noqa: F401

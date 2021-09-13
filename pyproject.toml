@@ -1,48 +1,41 @@
 [build-system]
-requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]~=6.0"]
-build-backend = "setuptools.build_meta"
+requires = ["poetry_core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
 
 [tool.black]
-target-version = ['py37']
+target-version = ["py37"]
 quiet = true
 
 [tool.coverage]
-    [tool.coverage.run]
-    branch = true
-    source = ["src"]
+[tool.coverage.run]
+branch = true
+source = ["src"]
 
-    [tool.coverage.report]
-    exclude_lines = [
-        # Exclude specific lines from coverage report.
-        "# pragma: no cover",
-
-        # Debug-only code.
-        "def __repr__",
-
-        # Defensive assertion code.
-        "raise AssertionError",
-        "raise NotImplementedError",
-        "raise RuntimeError",
-        "raise ValueError",
-
-        # Not able to hit during testing.
-        'if __name__ == "__main__":',
-
-        # Unimplemented code.
-        "pass",
-
-        # Missing import code.
-        "except ImportError",
-
-        # Type-checking
-        "TYPE_CHECKING",
+[tool.coverage.report]
+exclude_lines = [
+    # Exclude specific lines from coverage report.
+    "# pragma: no cover",
+    # Debug-only code.
+    "def __repr__",
+    # Defensive assertion code.
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "raise RuntimeError",
+    "raise ValueError",
+    # Not able to hit during testing.
+    'if __name__ == "__main__":',
+    # Unimplemented code.
+    "pass",
+    # Missing import code.
+    "except ImportError",
+    # Type-checking
+    "TYPE_CHECKING",
     ]
-    omit = ["src/wikidata_history_analyzer/__main__.py"]
-    skip_covered = true
-    skip_empty = true
+skip_covered = true
+skip_empty = true
 
-    [tool.coverage.html]
-    show_contexts = true
+[tool.coverage.html]
+show_contexts = true
 
 [tool.isort]
 line_length = 88
@@ -51,22 +44,112 @@ force_grid_wrap = 0
 include_trailing_comma = true
 use_parentheses = true
 
-[tool.nbqa.addopts]
-autoflake = [
-    "--in-place",
-    "--remove-all-unused-imports",
-    "--remove-duplicate-keys",
-    "--remove-unused-variables",
-]
+[tool.mypy]
+mypy_path = "./src"
+python_version = "3.7"
+plugins = ["pydantic.mypy"]
+pretty = true
 
-[tool.nbqa.mutate]
-autoflake = 1
-black = 1
-isort = 1
+# Disallow dynamic typing:
+# To much of a hassle with many untyped packages.
+#disallow_any_unimported = true
+# Sadly, I don't know how to type decorators when enabling the next three.
+#disallow_any_expr = true
+#disallow_any_decorated = true
+#disallow_any_explicit = true
+disallow_any_generics = true
+disallow_subclassing_any = true
+
+# Untyped definitions and calls:
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+
+# None and Optional handling:
+no_implicit_optional = true
+strict_optional = true
+
+# Configuring warnings:
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_return_any = true
+warn_unreachable = true
+
+# Miscellaneous strictness flags:
+allow_redefinition = true
+implicit_reexport = false
+strict_equality = true
+
+# Miscellaneous:
+error_summary = false
+warn_unused_configs = true
+
+# Ignore vulture's generated whitelist
+#[mypy-vulture-whitelist]
+#ignore_errors = true
+
+[tool.poetry]
+name = "wikidated"
+version = "0.1.0"
+description = "CLI/library for building and using the Wikidated dataset."
+license = "Apache-2.0"
+authors = ["Lukas Schmelzeisen <me@lschmelzeisen.com>"]
+readme = "README.rst"
+repository = "https://github.com/lschmelzeisen/wikidata-history-analyzer"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering",
+    "Typing :: Typed",
+    ]
+
+[tool.poetry.urls]
+"Issue Tracker" = "https://github.com/lschmelzeisen/wikidata-history-analyzer/issues"
+
+[tool.poetry.dependencies]
+JPype1 = { version = "^1.3", optional = true }
+coverage = { version = "^5.5", extras = ["toml"], optional = true }
+pytest = { version = "^6.2", optional = true }
+pytest-cov = { version = "^2.12", optional = true }
+pytest-html = { version = "^3.1", optional = true }
+pydantic = "^1.8"
+python = "^3.7"
+requests = "^2.26"
+tqdm = "^4.62"
+typing-extensions = "^3.7"
+
+[tool.poetry.dev-dependencies]
+black = "^21.8b0"
+flake8 = "^3.9"
+flake8-bandit = "^2.1"
+flake8-bugbear = "^21.9"
+flake8-builtins = "^1.5"
+flake8-comprehensions = "^3.6"
+flake8-eradicate = "^1.1"
+flake8-print = "^4.0"
+flake8-pyi = "^20.10"
+isort = "^5.9"
+licenseheaders = "^0.8"
+mypy = "^0.910"
+nox = "^2021.6"
+pep8-naming = "^0.12"
+types-requests = "^2.25"
+vulture = "^2.3"
+
+[tool.poetry.extras]
+test = ["coverage", "pytest", "pytest-cov", "pytest-html"]
+build = ["JPype1"]
 
 [tools.pytest.ini_options]
 testpaths = ["tests"]
-
-[tool.setuptools_scm]
-write_to = "src/wikidata_history_analyzer/_version.py"
-write_to_template = "__version__ = \"{version}\"\n"

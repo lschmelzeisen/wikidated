@@ -1,0 +1,34 @@
+[flake8]
+# required for Black compatibility
+max-line-length = 88
+# flake8-mccabe
+max-complexity = 10
+select =
+    # pycodestyle / flake8-eradicate
+    E
+    W
+    # flake8
+    F
+    # flake8-mccabe / flake8-comprehensions
+    C
+    # flake8-builtins
+    A
+    # flake8-bugbear / flake8-bandit
+    B
+    # flake8-pyi
+    Y
+    # flake8-print
+    T
+    # pep8-naming
+    N
+ignore =
+    # required for Black compatibility
+    E203
+    W503
+    # disable class-attributes overlapping with builtins
+    A003
+    # Ignore imports not at top of file (necessary for notebooks)
+    E402
+per-file-ignores =
+    # Allow vulture's whitelist syntax and overlong lines
+    vulture-whitelist.py:F821,E501

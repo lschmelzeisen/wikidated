@@ -14,6 +14,8 @@
 # limitations under the License.
 #
 
+import subprocess
+
 from nox import options, session
 from nox.sessions import Session
 
@@ -21,10 +23,27 @@ options.error_on_external_run = True
 options.reuse_existing_virtualenvs = True
 options.stop_on_first_error = True
 
+dependencies = subprocess.run(
+    [
+        "poetry",
+        "export",
+        "--format",
+        "requirements.txt",
+        "--without-hashes",
+        "--extras",
+        "test",
+        "--extras",
+        "build",
+    ],
+    capture_output=True,
+    check=True,
+    encoding="UTF-8",
+).stdout.splitlines()
+
 
 @session(python=["3.7", "3.8", "3.9"])
 def test(session: Session) -> None:
-    session.install("-e", ".[test]")
+    session.install(*dependencies, ".")
     session.run(
         "pytest",
         "--cov",
