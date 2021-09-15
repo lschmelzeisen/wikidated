@@ -54,7 +54,7 @@ class JavaDependencyDownloader:
         self.maven_dir = maven_dir
 
     def download_java_dependencies(self, artifacts: Collection[JavaArtifact]) -> None:
-        if self.are_artifacts_present(artifacts):
+        if self._are_artifacts_present(artifacts):
             _LOGGER.debug("JARs are already present, skipping download...")
             return
 
@@ -65,7 +65,7 @@ class JavaDependencyDownloader:
 
         _LOGGER.debug("  Done.")
 
-    def are_artifacts_present(self, artifacts: Collection[JavaArtifact]) -> bool:
+    def _are_artifacts_present(self, artifacts: Collection[JavaArtifact]) -> bool:
         # Check if JARs are present or need to be downloaded still. Since we do not know
         # the transitive dependencies yet we use the presence of the JARs we are given
         # as a heuristic for whether everything is there.
