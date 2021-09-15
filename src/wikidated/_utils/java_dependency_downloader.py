@@ -26,7 +26,11 @@ from tarfile import TarFile
 from tempfile import NamedTemporaryFile, TemporaryFile
 from typing import IO, Collection, Iterator, NamedTuple, Optional
 
-from wikidated._utils import download_file_with_progressbar, external_process, hashcheck
+from wikidated._utils.misc import (
+    download_file_with_progressbar,
+    external_process,
+    hashcheck,
+)
 
 _LOGGER = getLogger(__name__)
 
