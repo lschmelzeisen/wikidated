@@ -14,9 +14,11 @@
 # limitations under the License.
 #
 
+from contextlib import contextmanager
 from logging import getLogger
 from pathlib import Path
-from typing import IO, Optional, Union
+from subprocess import PIPE, Popen, TimeoutExpired
+from typing import IO, TYPE_CHECKING, Iterator, Optional, Sequence, Union
 
 import requests
 from tqdm import tqdm  # type: ignore
@@ -99,3 +101,59 @@ def hashcheck(file: Union[Path, IO[bytes]], h: Hash, expected: str) -> None:
     actual = hashsum(file, h)
     if actual != expected:
         raise Exception(f"File has hash '{actual}' but '{expected}' was expected.")
+
+
+# Python 3.7 does not allow indexing Popen yet, but mypy requires it.
+if TYPE_CHECKING:
+    Popen_str = Popen[str]
+else:
+    Popen_str = Popen
+
+
+@contextmanager
+def external_process(
+    args: Sequence[str],
+    *,
+    stdin: Optional[int],
+    stdout: Optional[int],
+    stderr: Optional[int],
+    name: Optional[str] = None,
+    exhaust_stdout_to_log: bool = False,
+    exhaust_stderr_to_log: bool = False,
+    terminate_timeout: Optional[float] = 1,
+    check_return_code_zero: bool = False,
+) -> Iterator[Popen_str]:
+    if name is None:
+        name = args[0]
+
+    process = Popen(args, stdin=stdin, stdout=stdout, stderr=stderr, encoding="UTF-8")
+
+    try:
+        yield process
+
+    finally:
+        if stdin == PIPE:
+            assert process.stdin is not None
+            process.stdin.close()
+
+        if exhaust_stdout_to_log:
+            assert stdout == PIPE
+            assert process.stdout is not None
+            for line in process.stdout:
+                _LOGGER.debug(f"{name}: {line.rstrip()}")
+
+        if exhaust_stderr_to_log:
+            assert stderr == PIPE
+            assert process.stderr is not None
+            for line in process.stderr:
+                _LOGGER.error(f"{name}: {line.rstrip()}")
+
+        process.terminate()
+        try:
+            process.wait(timeout=terminate_timeout)
+        except TimeoutExpired as e:
+            _LOGGER.exception(f"{name} process did not terminate, killing...", e)
+            process.kill()
+
+        if check_return_code_zero and process.returncode != 0:
+            raise Exception(f"{name} had non-zero return code: {process.returncode}")

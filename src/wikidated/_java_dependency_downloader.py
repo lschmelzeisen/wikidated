@@ -21,12 +21,12 @@ from hashlib import sha512
 from logging import getLogger
 from pathlib import Path
 from platform import system
-from subprocess import PIPE, STDOUT, Popen, TimeoutExpired
+from subprocess import DEVNULL, PIPE
 from tarfile import TarFile
 from tempfile import NamedTemporaryFile, TemporaryFile
 from typing import IO, Collection, Iterator, NamedTuple, Optional
 
-from wikidated._utils import download_file_with_progressbar, hashcheck
+from wikidated._utils import download_file_with_progressbar, external_process, hashcheck
 
 _LOGGER = getLogger(__name__)
 
@@ -136,36 +136,22 @@ class JavaDependencyDownloader:
     def _download_artifacts_with_maven(
         self, artifacts: Collection[JavaArtifact]
     ) -> None:
-        with self._maven_temp_pom(artifacts) as pom_path:
-            maven_proc = Popen(
-                (
-                    self._maven_bin_path(),
-                    "dependency:copy-dependencies",
-                    f"-DoutputDirectory={self.jars_dir.absolute()}",
-                    f"-Dmaven.repo.local={self.maven_dir / 'repo'}",
-                    "--file",
-                    str(pom_path),
-                    "--quiet",
-                ),
-                stdout=PIPE,
-                stderr=STDOUT,
-                encoding="UTF-8",
-            )
-
-            try:
-                assert maven_proc.stdout is not None
-                for line in maven_proc.stdout:
-                    _LOGGER.error("Maven: " + line.rstrip())
-
-            finally:
-                maven_proc.terminate()
-                try:
-                    maven_proc.wait(timeout=1)
-                except TimeoutExpired as e:
-                    _LOGGER.exception("Maven process did not terminate, killing...", e)
-                    maven_proc.kill()
-
-                if maven_proc.returncode != 0:
-                    raise Exception(
-                        f"Maven had non-zero return code: {maven_proc.returncode}"
-                    )
+        with self._maven_temp_pom(artifacts) as pom_path, external_process(
+            (
+                str(self._maven_bin_path()),
+                "dependency:copy-dependencies",
+                f"-DoutputDirectory={self.jars_dir.absolute()}",
+                f"-Dmaven.repo.local={self.maven_dir / 'repo'}",
+                "--file",
+                str(pom_path),
+                "--quiet",
+            ),
+            stdin=DEVNULL,
+            stdout=PIPE,
+            stderr=PIPE,
+            name="Maven",
+            exhaust_stdout_to_log=True,
+            exhaust_stderr_to_log=True,
+            check_return_code_zero=True,
+        ):
+            pass
