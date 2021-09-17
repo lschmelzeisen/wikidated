@@ -27,13 +27,13 @@ _LOGGER = getLogger(__name__)
 
 class SevenZipArchive:
     def __init__(self, path: Path) -> None:
-        self.path = path
+        self._path = path
 
     @contextmanager
     def write(self, file_name: Optional[Path] = None) -> Iterator[IO[str]]:
         file_name_str = str(file_name) if file_name else ""
         with external_process(
-            ("7z", "a", "-bd", "-bso0", f"-si{file_name_str}", str(self.path)),
+            ("7z", "a", "-bd", "-bso0", f"-si{file_name_str}", str(self._path)),
             stdin=PIPE,
             stdout=PIPE,
             stderr=PIPE,
@@ -48,7 +48,7 @@ class SevenZipArchive:
     def read(self, file_name: Optional[Path] = None) -> Iterator[IO[str]]:
         file_name_str = str(file_name) if file_name else ""
         with external_process(
-            ("7z", "x", "-so", str(self.path), file_name_str),
+            ("7z", "x", "-so", str(self._path), file_name_str),
             stdin=DEVNULL,
             stdout=PIPE,
             stderr=PIPE,

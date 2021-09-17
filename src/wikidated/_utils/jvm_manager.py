@@ -36,10 +36,10 @@ _LOGGER = getLogger(__name__)
 
 class JvmManager:
     def __init__(self, *, jars_dir: Path) -> None:
-        self.jars_dir = jars_dir
+        self._jars_dir = jars_dir
 
         _LOGGER.debug("Starting JVM...")
-        startJVM(classpath=[str(self.jars_dir / "*")])
+        startJVM(classpath=[str(self._jars_dir / "*")])
 
         self._java_logging_bridge = _JavaLoggingBridge()
 

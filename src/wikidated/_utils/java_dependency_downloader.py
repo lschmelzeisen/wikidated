@@ -54,8 +54,8 @@ class JavaArtifact(NamedTuple):
 
 class JavaDependencyDownloader:
     def __init__(self, *, jars_dir: Path, maven_dir: Path) -> None:
-        self.jars_dir = jars_dir
-        self.maven_dir = maven_dir
+        self._jars_dir = jars_dir
+        self._maven_dir = maven_dir
 
     def download_java_dependencies(self, artifacts: Collection[JavaArtifact]) -> None:
         if self._are_artifacts_present(artifacts):
@@ -75,15 +75,14 @@ class JavaDependencyDownloader:
         # as a heuristic for whether everything is there.
         for artifact in artifacts:
             if not (
-                self.jars_dir / f"{artifact.artifact_id}-{artifact.version}.jar"
+                self._jars_dir / f"{artifact.artifact_id}-{artifact.version}.jar"
             ).exists():
                 return False
         return True
 
     def _maven_bin_path(self) -> Path:
-        if system() == "Windows":
-            return self.maven_dir / f"apache-maven-{_MAVEN_VERSION}" / "bin" / "mvn.cmd"
-        return self.maven_dir / f"apache-maven-{_MAVEN_VERSION}" / "bin" / "mvn"
+        bin_dir = self._maven_dir / f"apache-maven-{_MAVEN_VERSION}" / "bin"
+        return bin_dir / ("mvn.cmd" if system() == "Windows" else "mvn")
 
     def _download_maven(self) -> None:
         if self._maven_bin_path().exists():
@@ -101,7 +100,7 @@ class JavaDependencyDownloader:
 
             _LOGGER.debug("Extracting Maven distribution...")
             maven_bin_archive = TarFile.open(fileobj=maven_bin_archive_fd)
-            maven_bin_archive.extractall(self.maven_dir)
+            maven_bin_archive.extractall(self._maven_dir)
 
     @staticmethod
     @contextmanager
@@ -144,8 +143,8 @@ class JavaDependencyDownloader:
             (
                 str(self._maven_bin_path()),
                 "dependency:copy-dependencies",
-                f"-DoutputDirectory={self.jars_dir.absolute()}",
-                f"-Dmaven.repo.local={self.maven_dir / 'repo'}",
+                f"-DoutputDirectory={self._jars_dir.absolute()}",
+                f"-Dmaven.repo.local={self._maven_dir / 'repo'}",
                 "--file",
                 str(pom_path),
                 "--quiet",
