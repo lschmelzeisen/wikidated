@@ -29,7 +29,7 @@ _LOGGER = getLogger(__name__)
 
 # Adapted from: https://stackoverflow.com/a/37573701/211404
 def download_file_with_progressbar(
-    url: str, dest: Union[Path, IO[bytes]], description: Optional[str] = None
+    url: str, dest: Union[Path, IO[bytes]], *, description: Optional[str] = None
 ) -> None:
     if isinstance(dest, Path):
         _LOGGER.debug(f"Downloading url '{url}' to file '{dest}'...")
@@ -73,6 +73,10 @@ def download_file_with_progressbar(
 
 
 class Hash(Protocol):
+    @property
+    def name(self) -> str:
+        ...
+
     def update(self, buffer: bytes) -> None:
         ...
 
@@ -100,7 +104,10 @@ def hashsum(file: Union[Path, IO[bytes]], h: Hash) -> str:
 def hashcheck(file: Union[Path, IO[bytes]], h: Hash, expected: str) -> None:
     actual = hashsum(file, h)
     if actual != expected:
-        raise Exception(f"File has hash '{actual}' but '{expected}' was expected.")
+        file_name = f"File '{file}'" if isinstance(file, Path) else "File"
+        raise Exception(
+            f"{file_name} has {h.name} hash '{actual}' but '{expected}' was expected."
+        )
 
 
 # Python 3.7 does not allow indexing Popen yet, but mypy requires it.

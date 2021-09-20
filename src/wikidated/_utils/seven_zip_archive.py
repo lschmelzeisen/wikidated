@@ -20,7 +20,7 @@ from pathlib import Path
 from subprocess import DEVNULL, PIPE
 from typing import IO, Iterator, Optional
 
-from wikidated._utils import external_process
+from wikidated._utils.misc import external_process
 
 _LOGGER = getLogger(__name__)
 
