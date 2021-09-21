@@ -47,13 +47,15 @@ class SevenZipArchive:
     @contextmanager
     def read(self, file_name: Optional[Path] = None) -> Iterator[IO[str]]:
         file_name_str = str(file_name) if file_name else ""
+        # Not sure how to check for errors here (particularly, if one wants to end
+        # processing output from stdout, before the full archive if depleted). Waiting
+        # for output on stderr stalls the process. Terminating while output in stdout is
+        # still being generated results in a -15 return code.
         with external_process(
             ("7z", "x", "-so", str(self._path), file_name_str),
             stdin=DEVNULL,
             stdout=PIPE,
             stderr=PIPE,
-            exhaust_stderr_to_log=True,
-            check_return_code_zero=True,
         ) as seven_zip_process:
             assert seven_zip_process.stdout is not None
             yield seven_zip_process.stdout
