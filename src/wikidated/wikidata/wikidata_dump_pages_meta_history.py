@@ -18,21 +18,32 @@ import re
 from datetime import date, datetime
 from itertools import chain
 from pathlib import Path
-from typing import Iterator, MutableMapping, Optional, Tuple
+from typing import Iterator, Mapping, MutableMapping, Optional, Tuple
 from xml.sax.saxutils import unescape
 
+from pydantic import BaseModel as PydanticModel
 from tqdm import tqdm  # type: ignore
 
-from wikidated._utils import JvmManager, SevenZipArchive
-from wikidated.datamodel import (
-    WikidataEntityMeta,
-    WikidataRawRevision,
-    WikidataRdfRevision,
-    WikidataRevisionMeta,
-    WikidataSiteInfo,
-    WikidatedRevision,
-)
+from wikidated._utils import SevenZipArchive
 from wikidated.wikidata.wikidata_dump_file import WikidataDumpFile
+from wikidated.wikidata.wikidata_revision_base import (
+    WikidataEntityMeta,
+    WikidataRevisionBase,
+    WikidataRevisionMeta,
+)
+
+
+class WikidataSiteInfo(PydanticModel):
+    site_name: str
+    db_name: str
+    base: str
+    generator: str
+    case: str
+    namespaces: Mapping[int, str]
+
+
+class WikidataRawRevision(WikidataRevisionBase):
+    text: Optional[str]
 
 
 class WikidataDumpPagesMetaHistory(WikidataDumpFile):
@@ -99,7 +110,10 @@ class WikidataDumpPagesMetaHistory(WikidataDumpFile):
             namespaces=namespaces,
         )
 
-    def iter_raw_revisions(
+    def __iter__(self) -> Iterator[WikidataRawRevision]:
+        return self.iter_revisions()
+
+    def iter_revisions(
         self, *, display_progress_bar: bool = True
     ) -> Iterator[WikidataRawRevision]:
         assert self._path.exists()
@@ -291,13 +305,3 @@ class WikidataDumpPagesMetaHistory(WikidataDumpFile):
     @classmethod
     def _unescape_xml(cls, value: str) -> str:
         return unescape(value, entities={"&quot;": '"'})
-
-    def iter_rdf_revisions(
-        self, jvm_manager: JvmManager, *, display_progress_bar: bool = True
-    ) -> Iterator[WikidataRdfRevision]:
-        raise NotImplementedError()
-
-    def iter_wikidated_revisions(
-        self, jvm_manager: JvmManager, *, display_progress_bar: bool = True
-    ) -> Iterator[WikidatedRevision]:
-        raise NotImplementedError()

@@ -14,73 +14,18 @@
 # limitations under the License.
 #
 
-from datetime import datetime
-from typing import (
-    AbstractSet,
-    Any,
-    Dict,
-    Mapping,
-    NamedTuple,
-    Optional,
-    Sequence,
-    Union,
+from typing import AbstractSet, Any, Dict, Mapping, Sequence, Union
+
+from wikidated.wikidata import (
+    WikidataRdfTriple,
+    WikidataRevisionBase,
+    WikidataRevisionMeta,
 )
 
-from pydantic import BaseModel as PydanticModel
 
-
-class RdfTriple(NamedTuple):
-    subject: str
-    predicate: str
-    object_: str
-
-
-class WikidataSiteInfo(PydanticModel):
-    site_name: str
-    db_name: str
-    base: str
-    generator: str
-    case: str
-    namespaces: Mapping[int, str]
-
-
-class WikidataEntityMeta(PydanticModel):
-    # TODO: verify that these never change between revisions (for Wikidata entities)
-    entity_id: str
-    page_id: int
-    namespace: int
-    redirect: Optional[str]
-
-
-class WikidataRevisionMeta(PydanticModel):
-    revision_id: int
-    parent_revision_id: Optional[int]
-    timestamp: datetime
-    contributor: Optional[str]
-    contributor_id: Optional[int]
-    is_minor: bool
-    comment: Optional[str]
-    wikibase_model: str
-    wikibase_format: str
-    sha1: Optional[str]
-
-
-class WikidataAbstractRevision(PydanticModel):
-    entity: WikidataEntityMeta
-    revision: WikidataRevisionMeta
-
-
-class WikidataRawRevision(WikidataAbstractRevision):
-    text: Optional[str]
-
-
-class WikidataRdfRevision(WikidataAbstractRevision):
-    triples: Sequence[RdfTriple]
-
-
-class WikidatedRevision(WikidataAbstractRevision):
-    triple_deletions: Sequence[RdfTriple]
-    triple_additions: Sequence[RdfTriple]
+class WikidatedRevision(WikidataRevisionBase):
+    triple_deletions: Sequence[WikidataRdfTriple]
+    triple_additions: Sequence[WikidataRdfTriple]
     triple_deletions_sample: Sequence[float]
     triple_additions_sample: Sequence[float]
 

@@ -45,5 +45,9 @@ class WikidataDumpFile:
         path_tmp.rename(self._path)
 
     @property
+    def path(self) -> Path:
+        return self._path
+
+    @property
     def size(self) -> int:
         return self._size

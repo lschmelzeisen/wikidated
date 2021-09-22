@@ -18,12 +18,36 @@ from wikidated.wikidata.wikidata_dump import WikidataDump
 from wikidated.wikidata.wikidata_dump_file import WikidataDumpFile
 from wikidated.wikidata.wikidata_dump_pages_meta_history import (
     WikidataDumpPagesMetaHistory,
+    WikidataRawRevision,
+    WikidataSiteInfo,
 )
 from wikidated.wikidata.wikidata_dump_sites_table import WikidataDumpSitesTable
+from wikidated.wikidata.wikidata_rdf_converter import (
+    WIKIDATA_RDF_PREFIXES,
+    WikidataRdfConversionError,
+    WikidataRdfConverter,
+    WikidataRdfRevision,
+    WikidataRdfTriple,
+)
+from wikidated.wikidata.wikidata_revision_base import (
+    WikidataEntityMeta,
+    WikidataRevisionBase,
+    WikidataRevisionMeta,
+)
 
 __all__ = [
     "WikidataDump",
     "WikidataDumpFile",
     "WikidataDumpPagesMetaHistory",
+    "WikidataRawRevision",
+    "WikidataSiteInfo",
     "WikidataDumpSitesTable",
+    "WIKIDATA_RDF_PREFIXES",
+    "WikidataRdfConversionError",
+    "WikidataRdfConverter",
+    "WikidataRdfRevision",
+    "WikidataRdfTriple",
+    "WikidataEntityMeta",
+    "WikidataRevisionBase",
+    "WikidataRevisionMeta",
 ]
