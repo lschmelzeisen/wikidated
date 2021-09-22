@@ -71,6 +71,14 @@ class WikidataDumpPagesMetaHistory(WikidataDumpFile):
             int(match["min_page_id"]), int(match["max_page_id"]) + 1
         )
 
+    @property
+    def date(self) -> date:
+        return self._date
+
+    @property
+    def page_id_range(self) -> range:
+        return self._page_id_range
+
     def site_info(self) -> WikidataSiteInfo:
         assert self._path.exists()
         with SevenZipArchive(self._path).read() as fd:

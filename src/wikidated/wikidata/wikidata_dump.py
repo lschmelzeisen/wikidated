@@ -53,6 +53,10 @@ class WikidataDump:
             self._dump_dir, self._version, self._mirror
         )
 
+    @property
+    def version(self) -> str:
+        return self._version
+
     def download(
         self, *, sites_table: bool = True, pages_meta_history: bool = True
     ) -> None:

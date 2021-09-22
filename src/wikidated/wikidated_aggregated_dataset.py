@@ -14,20 +14,27 @@
 # limitations under the License.
 #
 
-from typing import AbstractSet, Any, Dict, Mapping, Sequence, Union
+from __future__ import annotations
 
-from wikidated.wikidata import (
-    WikidataRdfTriple,
-    WikidataRevisionBase,
-    WikidataRevisionMeta,
+from enum import Enum
+from pathlib import Path
+from typing import AbstractSet, Any, Dict, Iterator, Mapping, Optional, Sequence, Union
+
+from wikidated.wikidata import WikidataDump, WikidataRevisionMeta
+from wikidated.wikidated_dataset import (
+    WikidatedDataset,
+    WikidatedEntityStreams,
+    WikidatedGlobalStream,
+    WikidatedRevision,
 )
 
 
-class WikidatedRevision(WikidataRevisionBase):
-    triple_deletions: Sequence[WikidataRdfTriple]
-    triple_additions: Sequence[WikidataRdfTriple]
-    triple_deletions_sample: Sequence[float]
-    triple_additions_sample: Sequence[float]
+class WikidatedAggregateMode(Enum):
+    INDIVIDUAL = "individual"
+    HOURLY = "hourly"
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
 
 
 class WikidatedAggregatedRevision(WikidatedRevision):
@@ -79,3 +86,44 @@ class WikidatedAggregatedRevision(WikidatedRevision):
             exclude_defaults=exclude_defaults,
             exclude_none=exclude_none,
         )
+
+
+class WikidatedAggregatedDataset(WikidatedDataset):
+    def __init__(
+        self,
+        data_dir: Path,
+        wikidata_dump: WikidataDump,
+        aggregate_mode: WikidatedAggregateMode,
+    ) -> None:
+        if aggregate_mode == WikidatedAggregateMode.INDIVIDUAL:
+            raise ValueError(
+                "WikidatedAggregatedDataset can not be used with INDIVIDUAL as "
+                "aggregate mode. Just use WikidatedDataset instead."
+            )
+
+        super().__init__(data_dir, wikidata_dump)
+
+    def iter_revisions(
+        self, page_id: Optional[int] = None, sample_rate: Optional[float] = None
+    ) -> Iterator[WikidatedAggregatedRevision]:
+        raise NotImplementedError()  # TODO
+
+    def entity_streams(self) -> WikidatedAggregatedEntityStreams:
+        raise NotImplementedError()  # TODO
+
+    def global_stream(self) -> WikidatedAggregatedGlobalStream:
+        raise NotImplementedError()  # TODO
+
+
+class WikidatedAggregatedEntityStreams(WikidatedEntityStreams):
+    def iter_revisions(
+        self, page_id: int, sample_rate: Optional[float] = None
+    ) -> Iterator[WikidatedAggregatedRevision]:
+        raise NotImplementedError()  # TODO
+
+
+class WikidatedAggregatedGlobalStream(WikidatedGlobalStream):
+    def iter_revisions(
+        self, sample_rate: Optional[float] = None
+    ) -> Iterator[WikidatedAggregatedRevision]:
+        raise NotImplementedError()  # TODO
