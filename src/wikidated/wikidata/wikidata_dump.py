@@ -133,9 +133,11 @@ class _WikidataDumpStatus(PydanticModel):
             url = f"{mirror}/wikidatawiki/{version}/dumpstatus.json"
             _LOGGER.debug(f"Downloading dump status from URL '{url}'...")
 
+            response = requests.get(url)
+            response.raise_for_status()
             path.parent.mkdir(exist_ok=True, parents=True)
             with path.open("w", encoding="UTF-8") as fd:
-                fd.write(json.dumps(requests.get(url).json(), indent=2) + "\n")
+                fd.write(json.dumps(response.json(), indent=2) + "\n")
 
         dump_status = _WikidataDumpStatus.parse_file(path)
         for job_name, job in dump_status.jobs.items():
