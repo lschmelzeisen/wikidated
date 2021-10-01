@@ -59,3 +59,15 @@ class SevenZipArchive:
         ) as seven_zip_process:
             assert seven_zip_process.stdout is not None
             yield seven_zip_process.stdout
+
+    def iter_file_names(self) -> Iterator[Path]:
+        with external_process(
+            ("7z", "l", "-ba", "-slt", str(self._path)),
+            stdin=DEVNULL,
+            stdout=PIPE,
+            stderr=PIPE,
+        ) as seven_zip_process:
+            assert seven_zip_process.stdout is not None
+            for line in seven_zip_process.stdout:
+                if line.startswith("Path = "):
+                    yield Path(line[len("Path = ") : -len("\n")])
