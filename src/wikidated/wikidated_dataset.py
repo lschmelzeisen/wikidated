@@ -48,22 +48,24 @@ class WikidatedDataset:
         self._data_dir = data_dir
         self._dataset_dir = data_dir / f"wikidated-custom-{wikidata_dump.version}"
 
-        self._partial_entity_streams = []
-        self._partial_global_stream = []
-        for pages_meta_history in wikidata_dump.pages_meta_history():
-            partial_entity_streams = _WikidatedEntityStreamsPartial(
+        self._entity_streams_partials = []
+        self._global_stream_partials = []
+        for pages_meta_history in wikidata_dump.pages_meta_history()[:4]:
+            entity_streams_partial = _WikidatedEntityStreamsPartial(
                 self._dataset_dir, pages_meta_history
             )
-            partial_global_stream = _WikidatedGlobalStreamPartial(
-                self._dataset_dir, partial_entity_streams
+            self._entity_streams_partials.append(entity_streams_partial)
+
+            global_stream_partial = _WikidatedGlobalStreamPartial(
+                self._dataset_dir, entity_streams_partial
             )
-            self._partial_entity_streams.append(partial_entity_streams)
-            self._partial_global_stream.append(partial_global_stream)
-        self._merged_entity_streams = _WikidataEntityStreamsMerged(
-            self._dataset_dir, self._partial_entity_streams
+            self._global_stream_partials.append(global_stream_partial)
+
+        self._entity_streams_merged = _WikidataEntityStreamsMerged(
+            self._dataset_dir, self._entity_streams_partials
         )
-        self._merged_global_stream = _WikidatedGlobalStreamMerged(
-            self._dataset_dir, self._partial_global_stream
+        self._global_stream_merged = _WikidatedGlobalStreamMerged(
+            self._dataset_dir, self._global_stream_partials
         )
 
     def download(
@@ -78,22 +80,22 @@ class WikidatedDataset:
         self, entity_page_id: Optional[int] = None, sample_rate: Optional[float] = None
     ) -> Iterator[WikidatedRevision]:
         if entity_page_id is not None:
-            return self._merged_entity_streams.iter_revisions(
+            return self._entity_streams_merged.iter_revisions(
                 entity_page_id=entity_page_id, sample_rate=sample_rate
             )
         else:
-            return self._merged_global_stream.iter_revisions(sample_rate=sample_rate)
+            return self._global_stream_merged.iter_revisions(sample_rate=sample_rate)
 
     def iter_page_ids(self) -> Iterator[int]:
-        return self._merged_entity_streams.iter_page_ids()
+        return self._entity_streams_merged.iter_page_ids()
 
     # TODO: rethink what kind of accessor methods might be used here in practice.
 
     def entity_streams(self) -> WikidatedEntityStreams:
-        return self._merged_entity_streams
+        return self._entity_streams_merged
 
     def global_stream(self) -> WikidatedGlobalStream:
-        return self._merged_global_stream
+        return self._global_stream_merged
 
 
 class _WikidatedStreamFile:
@@ -218,6 +220,7 @@ class _WikidataEntityStreamsMerged(WikidatedEntityStreams):
         entity_streams_partials: Sequence[_WikidatedEntityStreamsPartial],
     ) -> None:
         super().__init__(dataset_dir / f"{dataset_dir.name}-entity-streams.7z", None)
+        self._entity_streams_partials = entity_streams_partials
 
     def build(self, rdf_converter: WikidataRdfConverter) -> None:
         raise NotImplementedError()  # TODO
