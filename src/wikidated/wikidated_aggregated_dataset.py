@@ -104,7 +104,7 @@ class WikidatedAggregatedDataset(WikidatedDataset):
         super().__init__(data_dir, wikidata_dump)
 
     def iter_revisions(
-        self, page_id: Optional[int] = None, sample_rate: Optional[float] = None
+        self, entity_page_id: Optional[int] = None, sample_rate: Optional[float] = None
     ) -> Iterator[WikidatedAggregatedRevision]:
         raise NotImplementedError()  # TODO
 
@@ -117,7 +117,7 @@ class WikidatedAggregatedDataset(WikidatedDataset):
 
 class WikidatedAggregatedEntityStreams(WikidatedEntityStreams):
     def iter_revisions(
-        self, page_id: int, sample_rate: Optional[float] = None
+        self, entity_page_id: int, sample_rate: Optional[float] = None
     ) -> Iterator[WikidatedAggregatedRevision]:
         raise NotImplementedError()  # TODO
 

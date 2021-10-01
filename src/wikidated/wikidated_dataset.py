@@ -16,16 +16,24 @@
 
 from __future__ import annotations
 
+from itertools import groupby
+from logging import getLogger
 from pathlib import Path
-from typing import Iterator, Optional, Sequence
+from typing import Iterator, MutableSet, Optional, Sequence, Tuple
 
-from wikidated._utils import JvmManager
+from wikidated._utils import SevenZipArchive
 from wikidated.wikidata import (
     WikidataDump,
     WikidataDumpPagesMetaHistory,
+    WikidataEntityMeta,
+    WikidataRawRevision,
+    WikidataRdfConversionError,
+    WikidataRdfConverter,
     WikidataRdfTriple,
     WikidataRevisionBase,
 )
+
+_LOGGER = getLogger(__name__)
 
 
 class WikidatedRevision(WikidataRevisionBase):
@@ -67,11 +75,11 @@ class WikidatedDataset:
         raise NotImplementedError()  # TODO
 
     def iter_revisions(
-        self, page_id: Optional[int] = None, sample_rate: Optional[float] = None
+        self, entity_page_id: Optional[int] = None, sample_rate: Optional[float] = None
     ) -> Iterator[WikidatedRevision]:
-        if page_id is not None:
+        if entity_page_id is not None:
             return self._merged_entity_streams.iter_revisions(
-                page_id=page_id, sample_rate=sample_rate
+                entity_page_id=entity_page_id, sample_rate=sample_rate
             )
         else:
             return self._merged_global_stream.iter_revisions(sample_rate=sample_rate)
@@ -79,7 +87,7 @@ class WikidatedDataset:
     def iter_page_ids(self) -> Iterator[int]:
         return self._merged_entity_streams.iter_page_ids()
 
-    # TODO: rethink what kind of accessor methods might be used here in pracitce.
+    # TODO: rethink what kind of accessor methods might be used here in practice.
 
     def entity_streams(self) -> WikidatedEntityStreams:
         return self._merged_entity_streams
@@ -103,16 +111,32 @@ class _WikidatedStreamFile:
 
 
 class WikidatedEntityStreams(_WikidatedStreamFile):
-    def build(self, jvm_manager: JvmManager) -> None:
+    def build(self, rdf_converter: WikidataRdfConverter) -> None:
         raise NotImplementedError()
 
     def iter_revisions(
-        self, page_id: int, sample_rate: Optional[float] = None
+        self, entity_page_id: int, sample_rate: Optional[float] = None
     ) -> Iterator[WikidatedRevision]:
-        raise NotImplementedError()  # TODO
+        entity_streams_archive = SevenZipArchive(self._path)
+        with entity_streams_archive.read(
+            self._entity_file_name_from_page_id(entity_page_id)
+        ) as fd:
+            for line in fd:
+                yield WikidatedRevision.parse_raw(line)
 
     def iter_page_ids(self) -> Iterator[int]:
-        raise NotImplementedError()  # TODO
+        assert self._path.exists()
+        entity_streams_archive = SevenZipArchive(self._path)
+        for entity_file_name in entity_streams_archive.iter_file_names():
+            yield self._entity_page_id_from_file_name(entity_file_name)
+
+    @classmethod
+    def _entity_file_name_from_page_id(cls, entity_page_id: int) -> Path:
+        return Path(f"{entity_page_id}.jsonl")
+
+    @classmethod
+    def _entity_page_id_from_file_name(cls, entity_file_name: Path) -> int:
+        return int(entity_file_name.name[: -len(".jsonl")])
 
 
 class _WikidatedEntityStreamsPartial(WikidatedEntityStreams):
@@ -124,15 +148,67 @@ class _WikidatedEntityStreamsPartial(WikidatedEntityStreams):
         super().__init__(
             dataset_dir
             / (
-                f"entity-streams"
+                f"{dataset_dir.name}-entity-streams"
                 f"-p{pages_meta_history.page_id_range.start}"
                 f"-p{pages_meta_history.page_id_range.stop-1}.7z"
             ),
             pages_meta_history.page_id_range,
         )
+        self._pages_meta_history = pages_meta_history
 
-    def build(self, jvm_manager: JvmManager) -> None:
-        raise NotImplementedError()  # TODO
+    def build(self, rdf_converter: WikidataRdfConverter) -> None:
+        if self._path.exists():
+            _LOGGER.debug(f"File '{self._path}' already exists, skipping building.")
+            return
+
+        tmp_path = self._path.parent / ("tmp." + self._path.name)
+        tmp_path.parent.mkdir(exist_ok=True, parents=True)
+        entity_streams_archive = SevenZipArchive(tmp_path)
+
+        for entity_meta, revisions in self._iter_revisions_grouped_per_entity():
+            with entity_streams_archive.write(
+                self._entity_file_name_from_page_id(entity_meta.page_id)
+            ) as fd:
+                for revision in self._iter_wikidated_revisions(
+                    revisions, rdf_converter
+                ):
+                    fd.write(revision.json() + "\n")
+
+        tmp_path.rename(self._path)
+
+    def _iter_revisions_grouped_per_entity(
+        self,
+    ) -> Iterator[Tuple[WikidataEntityMeta, Iterator[WikidataRawRevision]]]:
+        return groupby(self._pages_meta_history, lambda revision: revision.entity)
+
+    @classmethod
+    def _iter_wikidated_revisions(
+        cls,
+        revisions: Iterator[WikidataRawRevision],
+        rdf_converter: WikidataRdfConverter,
+    ) -> Iterator[WikidatedRevision]:
+        state: MutableSet[WikidataRdfTriple] = set()
+
+        for revision in revisions:
+            try:
+                rdf_revision = rdf_converter(revision)
+            except WikidataRdfConversionError:
+                _LOGGER.exception("RDF conversion error.")
+                continue
+
+            triples_set = set(rdf_revision.triples)
+            triple_deletions = sorted(state - triples_set)
+            triple_additions = sorted(triples_set - state)
+            state = triples_set
+
+            yield WikidatedRevision(
+                entity=revision.entity,
+                revision=revision.revision,
+                triple_deletions=triple_deletions,
+                triple_additions=triple_additions,
+                triple_deletions_sample=[],
+                triple_additions_sample=[],
+            )
 
 
 class _WikidataEntityStreamsMerged(WikidatedEntityStreams):
@@ -141,9 +217,9 @@ class _WikidataEntityStreamsMerged(WikidatedEntityStreams):
         dataset_dir: Path,
         entity_streams_partials: Sequence[_WikidatedEntityStreamsPartial],
     ) -> None:
-        super().__init__(dataset_dir / "entity-streams.7z", None)
+        super().__init__(dataset_dir / f"{dataset_dir.name}-entity-streams.7z", None)
 
-    def build(self, jvm_manager: JvmManager) -> None:
+    def build(self, rdf_converter: WikidataRdfConverter) -> None:
         raise NotImplementedError()  # TODO
 
 
@@ -165,7 +241,7 @@ class _WikidatedGlobalStreamPartial(WikidatedGlobalStream):
         super().__init__(
             dataset_dir
             / (
-                "global-stream"
+                f"{dataset_dir.name}-global-stream"
                 f"-p{entity_stream.page_id_range.start}"
                 f"-p{entity_stream.page_id_range.stop - 1}.7z"
             ),
@@ -182,7 +258,7 @@ class _WikidatedGlobalStreamMerged(WikidatedGlobalStream):
         dataset_dir: Path,
         global_stream_partials: Sequence[_WikidatedGlobalStreamPartial],
     ) -> None:
-        super().__init__(dataset_dir / "global-stream.7z", None)
+        super().__init__(dataset_dir / f"{dataset_dir.name}-global-stream.7z", None)
 
     def build(self) -> None:
         raise NotImplementedError()  # TODO
