@@ -15,74 +15,20 @@
 #
 
 from pathlib import Path
-from typing import overload
-
-from typing_extensions import Literal
 
 from wikidated._utils import JavaArtifact, JavaDependencyDownloader, JvmManager
 from wikidated.wikidata import WikidataDump
-from wikidated.wikidated_aggregated_dataset import (
-    WikidatedAggregatedDataset,
-    WikidatedAggregateMode,
-)
 from wikidated.wikidated_dataset import WikidatedDataset
-
-_L_INDIVIDUAL = Literal[WikidatedAggregateMode.INDIVIDUAL]
-_L_AGGREGATED = Literal[
-    WikidatedAggregateMode.HOURLY,
-    WikidatedAggregateMode.DAILY,
-    WikidatedAggregateMode.WEEKLY,
-    WikidatedAggregateMode.MONTHLY,
-]
 
 
 class WikidatedManager:
     def __init__(self, data_dir: Path) -> None:
         self._data_dir = data_dir
 
-    @overload
     def custom(self, wikidata_dump: WikidataDump) -> WikidatedDataset:
-        ...
+        return WikidatedDataset(self._data_dir, wikidata_dump)
 
-    @overload
-    def custom(
-        self, wikidata_dump: WikidataDump, aggregate_mode: _L_INDIVIDUAL
-    ) -> WikidatedDataset:
-        ...
-
-    @overload
-    def custom(
-        self, wikidata_dump: WikidataDump, aggregate_mode: _L_AGGREGATED
-    ) -> WikidatedAggregatedDataset:
-        ...
-
-    def custom(
-        self,
-        wikidata_dump: WikidataDump,
-        aggregate_mode: WikidatedAggregateMode = WikidatedAggregateMode.INDIVIDUAL,
-    ) -> WikidatedDataset:
-        if aggregate_mode == WikidatedAggregateMode.INDIVIDUAL:
-            return WikidatedDataset(self._data_dir, wikidata_dump)
-        else:
-            return WikidatedAggregatedDataset(
-                self._data_dir, wikidata_dump, aggregate_mode
-            )
-
-    @overload
     def v1_0(self) -> WikidatedDataset:
-        ...
-
-    @overload
-    def v1_0(self, aggregate_mode: _L_INDIVIDUAL) -> WikidatedDataset:
-        ...
-
-    @overload
-    def v1_0(self, aggregate_mode: _L_AGGREGATED) -> WikidatedAggregatedDataset:
-        ...
-
-    def v1_0(
-        self, aggregate_mode: WikidatedAggregateMode = WikidatedAggregateMode.INDIVIDUAL
-    ) -> WikidatedDataset:
         raise NotImplementedError()  # TODO
 
     def page_id_from_entity_id(self, entity_id: str) -> int:

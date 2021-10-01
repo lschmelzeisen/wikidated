@@ -39,8 +39,6 @@ _LOGGER = getLogger(__name__)
 class WikidatedRevision(WikidataRevisionBase):
     triple_deletions: Sequence[WikidataRdfTriple]
     triple_additions: Sequence[WikidataRdfTriple]
-    triple_deletions_sample: Sequence[float]
-    triple_additions_sample: Sequence[float]
 
 
 class WikidatedDataset:
@@ -77,14 +75,14 @@ class WikidatedDataset:
         raise NotImplementedError()  # TODO
 
     def iter_revisions(
-        self, entity_page_id: Optional[int] = None, sample_rate: Optional[float] = None
+        self, entity_page_id: Optional[int] = None
     ) -> Iterator[WikidatedRevision]:
         if entity_page_id is not None:
             return self._entity_streams_merged.iter_revisions(
-                entity_page_id=entity_page_id, sample_rate=sample_rate
+                entity_page_id=entity_page_id
             )
         else:
-            return self._global_stream_merged.iter_revisions(sample_rate=sample_rate)
+            return self._global_stream_merged.iter_revisions()
 
     def iter_page_ids(self) -> Iterator[int]:
         return self._entity_streams_merged.iter_page_ids()
@@ -116,9 +114,7 @@ class WikidatedEntityStreams(_WikidatedStreamFile):
     def build(self, rdf_converter: WikidataRdfConverter) -> None:
         raise NotImplementedError()
 
-    def iter_revisions(
-        self, entity_page_id: int, sample_rate: Optional[float] = None
-    ) -> Iterator[WikidatedRevision]:
+    def iter_revisions(self, entity_page_id: int) -> Iterator[WikidatedRevision]:
         entity_streams_archive = SevenZipArchive(self._path)
         with entity_streams_archive.read(
             self._entity_file_name_from_page_id(entity_page_id)
@@ -208,8 +204,6 @@ class _WikidatedEntityStreamsPartial(WikidatedEntityStreams):
                 revision=revision.revision,
                 triple_deletions=triple_deletions,
                 triple_additions=triple_additions,
-                triple_deletions_sample=[],
-                triple_additions_sample=[],
             )
 
 
@@ -230,9 +224,7 @@ class WikidatedGlobalStream(_WikidatedStreamFile):
     def build(self) -> None:
         raise NotImplementedError()
 
-    def iter_revisions(
-        self, sample_rate: Optional[float] = None
-    ) -> Iterator[WikidatedRevision]:
+    def iter_revisions(self) -> Iterator[WikidatedRevision]:
         raise NotImplementedError()  # TODO
 
 
