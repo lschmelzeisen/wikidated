@@ -26,6 +26,13 @@ from wikidated._utils.misc import (
     hashcheck,
     hashsum,
 )
+from wikidated._utils.parallelize import (
+    ParallelizeExitWorkerFunc,
+    ParallelizeFunc,
+    ParallelizeInitWorkerFunc,
+    ParallelizeUpdateProgressFunc,
+    parallelize,
+)
 from wikidated._utils.seven_zip_archive import SevenZipArchive
 
 __all__ = [
@@ -37,5 +44,10 @@ __all__ = [
     "external_process",
     "hashcheck",
     "hashsum",
+    "ParallelizeExitWorkerFunc",
+    "ParallelizeFunc",
+    "ParallelizeInitWorkerFunc",
+    "ParallelizeUpdateProgressFunc",
+    "parallelize",
     "SevenZipArchive",
 ]
