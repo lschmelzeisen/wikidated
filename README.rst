@@ -1,32 +1,40 @@
 ================================================================================
-Wikidata History Analyzer
+Wikidated
 ================================================================================
 
-Wikidata History Analyzer is a tool/library for parsing and analyzing the
-`Wikidata dumps <https://www.wikidata.org/wiki/Wikidata:Database_download>`_
-(the ``pages-meta-history.xml`` format to be concrete).
-It supports:
+Wikidated 1.0 is a dataset of Wikidata’s full revision history, which encodes
+changes between Wikidata revisions as sets of deletions and additions of RDF
+triples.
 
-* Serializing the dumps into time streams of RDF triple operations (add/delete)
-  both individually per Wikidata entity and globally across all entities.
-* Calculating statistics over time (for example, update frequencies of entities,
-  lifetimes of triples, etc.)
+This repository contains the code used to generate it as well as a Python API
+to process it.
 
-Currently, while the major functionality is implemented, the API is not yet
-ready for public use and in particular is not documented yet.
-A first release is planned for the second half of July.
-But since you found this repository already yet, why no keep an eye on it, star
-it on GitHub, and be automatically notified once it's ready? ;)
+**We are currently in the process of refactoring the code and preparing the
+dataset for initial public release. It will be available here soon.**
 
-Usage
+Publication
 ================================================================================
 
-TODO: Document that ulimits for number of open processes and number of open
-files need to be raised and how to do that (remember to also adjust my personal
-dotfile scripts for this).
+We describe the Wikidated dataset and our methodology for generating it in our
+publication: `Schmelzeisen, Dima, Staab (2021). Wikidated 1.0: An Evolving Knowledge Graph
+Dataset of Wikidata’s Revision History. Wikidata@ISWC. <http://ceur-ws.org/Vol-2982/paper-11.pdf>`_
+If you find this dataset useful or use it in any academic work, please cite it
+as::
+
+    @inproceedings{conf/semweb/SchmelzeisenDS21,
+      author    = {Lukas Schmelzeisen and
+                   Corina Dima and
+                   Steffen Staab},
+      title     = {{Wikidated 1.0: An Evolving Knowledge Graph Dataset of Wikidata’s Revision History}},
+      booktitle = {Wikidata@ISWC},
+      series    = {{CEUR} Workshop Proceedings},
+      volume    = {2982},
+      publisher = {CEUR-WS.org},
+      year      = {2021}
+    }
 
 License
-========================================================================================
+================================================================================
 
 Copyright 2021 Lukas Schmelzeisen.
 Licensed under the
