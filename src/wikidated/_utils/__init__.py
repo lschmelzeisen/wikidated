@@ -33,6 +33,7 @@ from wikidated._utils.parallelize import (
     ParallelizeUpdateProgressFunc,
     parallelize,
 )
+from wikidated._utils.range_map import RangeMap
 from wikidated._utils.seven_zip_archive import SevenZipArchive
 
 __all__ = [
@@ -49,5 +50,6 @@ __all__ = [
     "ParallelizeInitWorkerFunc",
     "ParallelizeUpdateProgressFunc",
     "parallelize",
+    "RangeMap",
     "SevenZipArchive",
 ]
