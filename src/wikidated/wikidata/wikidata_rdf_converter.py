@@ -17,6 +17,7 @@
 from typing import NamedTuple, Optional, Sequence
 
 from jpype import JClass, JException, JObject  # type: ignore
+from marisa_trie import Trie
 
 from wikidated._utils import JvmManager
 from wikidated.wikidata.wikidata_dump_pages_meta_history import WikidataRawRevision
@@ -27,39 +28,40 @@ from wikidated.wikidata.wikidata_revision_base import WikidataRevisionBase
 # https://www.mediawiki.org/w/index.php?title=Wikibase/Indexing/RDF_Dump_Format&oldid=4471307#Full_list_of_prefixes
 # but sorted so that the longer URLs come first to enable one-pass prefixing.
 WIKIDATA_RDF_PREFIXES = {
-    "cc": "http://creativecommons.org/ns#",
-    "dct": "http://purl.org/dc/terms/",
-    "schema": "http://schema.org/",
-    "wikibase": "http://wikiba.se/ontology#",
-    "hint": "http://www.bigdata.com/queryHints#",
-    "bd": "http://www.bigdata.com/rdf#",
-    "geo": "http://www.opengis.net/ont/geosparql#",
-    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-    "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
-    "xsd": "http://www.w3.org/2001/XMLSchema#",
-    "owl": "http://www.w3.org/2002/07/owl#",
-    "skos": "http://www.w3.org/2004/02/skos/core#",
-    "ontolex": "http://www.w3.org/ns/lemon/ontolex#",
-    "prov": "http://www.w3.org/ns/prov#",
-    "wds": "http://www.wikidata.org/entity/statement/",
-    "wd": "http://www.wikidata.org/entity/",
-    "wdtn": "http://www.wikidata.org/prop/direct-normalized/",
-    "wdt": "http://www.wikidata.org/prop/direct/",
-    "wdno": "http://www.wikidata.org/prop/novalue/",
-    "pqn": "http://www.wikidata.org/prop/qualifier/value-normalized/",
-    "pqv": "http://www.wikidata.org/prop/qualifier/value/",
-    "pq": "http://www.wikidata.org/prop/qualifier/",
-    "prn": "http://www.wikidata.org/prop/reference/value-normalized/",
-    "prv": "http://www.wikidata.org/prop/reference/value/",
-    "pr": "http://www.wikidata.org/prop/reference/",
-    "psn": "http://www.wikidata.org/prop/statement/value-normalized/",
-    "psv": "http://www.wikidata.org/prop/statement/value/",
-    "ps": "http://www.wikidata.org/prop/statement/",
-    "p": "http://www.wikidata.org/prop/",
-    "wdref": "http://www.wikidata.org/reference/",
-    "wdv": "http://www.wikidata.org/value/",
-    "wdata": "http://www.wikidata.org/wiki/Special:EntityData/",
+    "http://creativecommons.org/ns#": "cc",
+    "http://purl.org/dc/terms/": "dct",
+    "http://schema.org/": "schema",
+    "http://wikiba.se/ontology#": "wikibase",
+    "http://www.bigdata.com/queryHints#": "hint",
+    "http://www.bigdata.com/rdf#": "bd",
+    "http://www.opengis.net/ont/geosparql#": "geo",
+    "http://www.w3.org/1999/02/22-rdf-syntax-ns#": "rdf",
+    "http://www.w3.org/2000/01/rdf-schema#": "rdfs",
+    "http://www.w3.org/2001/XMLSchema#": "xsd",
+    "http://www.w3.org/2002/07/owl#": "owl",
+    "http://www.w3.org/2004/02/skos/core#": "skos",
+    "http://www.w3.org/ns/lemon/ontolex#": "ontolex",
+    "http://www.w3.org/ns/prov#": "prov",
+    "http://www.wikidata.org/entity/": "wd",
+    "http://www.wikidata.org/entity/statement/": "wds",
+    "http://www.wikidata.org/prop/": "p",
+    "http://www.wikidata.org/prop/direct-normalized/": "wdtn",
+    "http://www.wikidata.org/prop/direct/": "wdt",
+    "http://www.wikidata.org/prop/novalue/": "wdno",
+    "http://www.wikidata.org/prop/qualifier/": "pq",
+    "http://www.wikidata.org/prop/qualifier/value-normalized/": "pqn",
+    "http://www.wikidata.org/prop/qualifier/value/": "pqv",
+    "http://www.wikidata.org/prop/reference/": "pr",
+    "http://www.wikidata.org/prop/reference/value-normalized/": "prn",
+    "http://www.wikidata.org/prop/reference/value/": "prv",
+    "http://www.wikidata.org/prop/statement/": "ps",
+    "http://www.wikidata.org/prop/statement/value-normalized/": "psn",
+    "http://www.wikidata.org/prop/statement/value/": "psv",
+    "http://www.wikidata.org/reference/": "wdref",
+    "http://www.wikidata.org/value/": "wdv",
+    "http://www.wikidata.org/wiki/Special:EntityData/": "wdata",
 }
+WIKIDATA_RDF_PREFIXES_TRIE = Trie(WIKIDATA_RDF_PREFIXES.keys())
 
 
 class WikidataRdfTriple(NamedTuple):
@@ -124,19 +126,30 @@ class WikidataRdfConverter:
     def __init__(
         self, sites_table: WikidataDumpSitesTable, jvm_manager: JvmManager
     ) -> None:
-        self._java_byte_array_output_stream = JClass("java.io.ByteArrayOutputStream")
+        self._wdtk_output_stream = JClass("java.io.ByteArrayOutputStream")()
+        self._wdtk_rdf_writer = JClass("org.wikidata.wdtk.rdf.RdfWriter")(
+            JClass("org.eclipse.rdf4j.rio.RDFFormat").NTRIPLES, self._wdtk_output_stream
+        )
+        self._wdtk_rdf_writer.start()
+        self._wdtk_rdf_converter = JClass("org.wikidata.wdtk.rdf.RdfConverter")(
+            self._wdtk_rdf_writer,
+            self._load_wdtk_sites(sites_table),
+            JClass(
+                "org.wikidata.wdtk.rdf.PropertyRegister"
+            ).getWikidataPropertyRegister(),
+        )
+        # Largest Java Integer, i.e., just ones in the binary representation. Used here
+        # as the aggregation of all possible flags.
+        self._wdtk_rdf_converter.setTasks(2 ** 31 - 1)
+
         self._wdtk_json_deserializer = JClass(
             "org.wikidata.wdtk.datamodel.helpers.JsonDeserializer"
         )(JClass("org.wikidata.wdtk.datamodel.helpers.Datamodel").SITE_WIKIDATA)
-        self._wdtk_rdf_converter = JClass("org.wikidata.wdtk.rdf.RdfConverter")
-        self._wdtk_rdf_writer = JClass("org.wikidata.wdtk.rdf.RdfWriter")
-        self._wdtk_property_register = JClass(
-            "org.wikidata.wdtk.rdf.PropertyRegister"
-        ).getWikidataPropertyRegister()
-        self._wdtk_ntriples_format = JClass("org.eclipse.rdf4j.rio.RDFFormat").NTRIPLES
         self._wdtk_item_ri = self._wdtk_rdf_writer.WB_ITEM
         self._wdtk_property_iri = self._wdtk_rdf_writer.WB_PROPERTY
-        self._wdtk_sites = self._load_wdtk_sites(sites_table)
+        self._wdtk_same_as_iri = self._wdtk_rdf_writer.getUri(
+            "http://www.w3.org/2002/07/owl#sameAs"
+        )
 
     @classmethod
     def _load_wdtk_sites(cls, sites_table: WikidataDumpSitesTable) -> JObject:
@@ -162,17 +175,10 @@ class WikidataRdfConverter:
         # TODO: document that RdfConverter basically only adds the "TASK filtering" on
         #  top of AbstractRdfConverter.
 
-        java_output_stream = self._java_byte_array_output_stream()
-        wdtk_rdf_writer = self._wdtk_rdf_writer(
-            self._wdtk_ntriples_format, java_output_stream
-        )
-        wdtk_rdf_writer.start()
-        wdtk_rdf_converter = self._wdtk_rdf_converter(
-            wdtk_rdf_writer, self._wdtk_sites, self._wdtk_property_register
-        )
-        # Largest Java Integer, i.e., just ones in the binary representation. Used here
-        # as the aggregation of all possible flags.
-        wdtk_rdf_converter.setTasks(2 ** 31 - 1)
+        wdtk_rdf_writer = self._wdtk_rdf_writer
+        wdtk_rdf_converter = self._wdtk_rdf_converter
+
+        self._wdtk_output_stream.reset()
 
         if include_schema_triples:
             wdtk_rdf_converter.writeNamespaceDeclarations()
@@ -223,7 +229,7 @@ class WikidataRdfConverter:
                 # Query Service also uses it to represent redirects.
                 wdtk_rdf_writer.writeTripleUriObject(
                     wdtk_document.getEntityId().getIri(),
-                    wdtk_rdf_writer.getUri("http://www.w3.org/2002/07/owl#sameAs"),
+                    self._wdtk_same_as_iri,
                     wdtk_document.getTargetId().getIri(),
                 )
 
@@ -242,12 +248,12 @@ class WikidataRdfConverter:
             # between revisions.
             wdtk_rdf_converter.finishDocument()
 
-        wdtk_rdf_writer.finish()
+        self._wdtk_rdf_writer.finish()
 
         return WikidataRdfRevision(
             entity=revision.entity,
             revision=revision.revision,
-            triples=self._parse_ntriples(str(java_output_stream)),
+            triples=self._parse_ntriples(str(self._wdtk_output_stream)),
         )
 
     def _load_wdtk_document(self, revision: WikidataRawRevision) -> JObject:
@@ -281,39 +287,28 @@ class WikidataRdfConverter:
 
     @classmethod
     def _parse_ntriples(cls, ntriples: str) -> Sequence[WikidataRdfTriple]:
-        # The following line parsing with checking for " ." at end of lines is sadly
-        # necessary because WDTK can output triples spanning multiple lines in rare
-        # cases. For example this happens for the item
-        # https://www.wikidata.org/w/index.php?oldid=199561928 which contains the triple
-        # wd:Q34299 wdt:P1705 "Ð¡Ð°Ñ\nÐ° ÑÑÐ»Ð°"@sah .
-        triples = []
-        line_buffer = ""
-        for line in ntriples.splitlines():
-            line_buffer += line
-            if not line.endswith(" ."):
-                continue
-
-            # line_buffer[:-2] is line without " ." at then end.
-            # .split(" ", 2) ensures that spaces in literals are not split.
-            subject, predicate, object_ = line_buffer[:-2].split(" ", 2)
-
-            triples.append(
-                WikidataRdfTriple(
-                    cls._prefix_ntriples_uri(subject),
-                    cls._prefix_ntriples_uri(predicate),
-                    cls._prefix_ntriples_uri(object_),
-                )
+        # In rare cases, WDTK will output triples spanning multiple lines. For example,
+        # this happens for the item https://www.wikidata.org/w/index.php?oldid=199561928
+        # which contains the triple wd:Q34299 wdt:P1705 "Ð¡Ð°Ñ\nÐ° ÑÑÐ»Ð°"@sah .
+        return [
+            WikidataRdfTriple(
+                # .split(" ", 2) split into subject, predicate, and object and ensures
+                # spaces in literals are not split.
+                *map(cls._prefix_ntriples_uri, triple.split(" ", 2))
             )
-            line_buffer = ""
-        return triples
+            for triple in ntriples.split(" .\n")
+            if triple
+        ]
 
     @classmethod
     def _prefix_ntriples_uri(cls, uri: str) -> str:
-        if not uri[0] == "<":
+        if not uri[0] == "<":  # if uri starts with a "<" it also ends with a ">".
             return uri  # Argument is not an URI.
 
-        uri = uri[1:-1]  # Remove brackets before and after URI.
-        for prefix, prefix_url in WIKIDATA_RDF_PREFIXES.items():
-            if uri.startswith(prefix_url):
-                return prefix + ":" + uri[len(prefix_url) :]
-        return "<" + uri + ">"
+        # uri[1:-1] is the uri without the angel brackets.
+        prefix_urls = WIKIDATA_RDF_PREFIXES_TRIE.prefixes(uri[1:-1])
+        if prefix_urls:
+            prefix_uri = prefix_urls[-1]  # Longest prefix is always at the end.
+            prefix = WIKIDATA_RDF_PREFIXES[prefix_uri]
+            return prefix + ":" + uri[len(prefix_uri) + 1 : -1]  # [+1:-1] like before.
+        return uri
