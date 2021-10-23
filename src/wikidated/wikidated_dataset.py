@@ -46,10 +46,6 @@ class WikidatedRevision(WikidataRevisionBase):
     triple_additions: Sequence[WikidataRdfTriple]
 
 
-# TODO: can move to class variable?
-_JVM_MANAGER: Optional[JvmManager] = None
-
-
 class WikidatedDataset:
     def __init__(
         self,
@@ -62,6 +58,7 @@ class WikidatedDataset:
 
         self._wikidata_dump = wikidata_dump
         self._jvm_manager_constructor = jvm_manager_constructor
+        self._jvm_manager: Optional[JvmManager] = None
 
         self._entity_streams_partials = []
         self._global_stream_partials = []
@@ -114,21 +111,18 @@ class WikidatedDataset:
             raise NotImplementedError()  # TODO
 
     def _init_worker_with_rdf_converter(self) -> Mapping[str, object]:
-        global _JVM_MANAGER
-        _JVM_MANAGER = self._jvm_manager_constructor()
+        self._jvm_manager = self._jvm_manager_constructor()
         # TODO: log jvm errors?
         return {
             "rdf_converter": WikidataRdfConverter(
-                self._wikidata_dump.sites_table(), _JVM_MANAGER
+                self._wikidata_dump.sites_table(), self._jvm_manager
             )
         }
 
-    @classmethod
-    def _exit_worker_with_rdf_converter(cls) -> None:
-        global _JVM_MANAGER
-        if _JVM_MANAGER is not None:
-            _JVM_MANAGER.close()
-            _JVM_MANAGER = None
+    def _exit_worker_with_rdf_converter(self) -> None:
+        if self._jvm_manager is not None:
+            self._jvm_manager.close()
+            self._jvm_manager = None
 
     @classmethod
     def _build_entity_streams_partial(
