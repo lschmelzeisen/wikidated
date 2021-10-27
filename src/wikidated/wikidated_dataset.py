@@ -241,21 +241,19 @@ class _WikidatedEntityStreamsPartial(WikidatedEntityStreams):
             # does not describe a Wikidata entity (e.g., it could be a wikitext page).
             # Only if it exists, do we add a file to the output archive.
 
-            first_wikidated_revision: Optional[WikidatedRevision] = None
             try:
                 first_wikidated_revision = next(wikidated_revisions)
             except StopIteration:
-                pass
+                continue
 
-            if first_wikidated_revision is not None:
-                with entity_streams_archive.write(
-                    self._entity_file_name_from_page_id(entity_meta.page_id)
-                ) as fd:
-                    for wikidated_revision in chain(
-                        (first_wikidated_revision,), wikidated_revisions
-                    ):
-                        fd.write(wikidated_revision.json() + "\n")
-                        yield wikidated_revision
+            with entity_streams_archive.write(
+                self._entity_file_name_from_page_id(entity_meta.page_id)
+            ) as fd:
+                for wikidated_revision in chain(
+                    (first_wikidated_revision,), wikidated_revisions
+                ):
+                    fd.write(wikidated_revision.json() + "\n")
+                    yield wikidated_revision
 
         tmp_path.rename(self._path)
 
