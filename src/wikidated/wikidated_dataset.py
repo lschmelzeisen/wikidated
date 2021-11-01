@@ -19,6 +19,7 @@ from __future__ import annotations
 from itertools import chain, groupby
 from logging import getLogger
 from pathlib import Path
+from shutil import rmtree
 from typing import Callable, Iterator, Mapping, MutableSet, Optional, Sequence, Tuple
 
 from wikidated._utils import (
@@ -227,9 +228,8 @@ class _WikidatedEntityStreamsPartial(WikidatedEntityStreams):
             _LOGGER.debug(f"File '{self._path}' already exists, skipping building.")
             return iter([])
 
-        tmp_path = self._path.parent / ("tmp." + self._path.name)
-        tmp_path.parent.mkdir(exist_ok=True, parents=True)
-        entity_streams_archive = SevenZipArchive(tmp_path)
+        tmp_dir = self.path.parent / ("tmp." + self._path.name)
+        tmp_dir.mkdir(exist_ok=True, parents=True)
 
         for entity_meta, revisions in self._iter_revisions_grouped_per_entity():
             wikidated_revisions = self._iter_wikidated_revisions(
@@ -246,16 +246,17 @@ class _WikidatedEntityStreamsPartial(WikidatedEntityStreams):
             except StopIteration:
                 continue
 
-            with entity_streams_archive.write(
-                self._entity_file_name_from_page_id(entity_meta.page_id)
-            ) as fd:
+            with (
+                tmp_dir / self._entity_file_name_from_page_id(entity_meta.page_id)
+            ).open("w", encoding="UTF-8") as fd:
                 for wikidated_revision in chain(
                     (first_wikidated_revision,), wikidated_revisions
                 ):
                     fd.write(wikidated_revision.json() + "\n")
                     yield wikidated_revision
 
-        tmp_path.rename(self._path)
+        SevenZipArchive.from_dir(tmp_dir, self._path)
+        rmtree(tmp_dir)
 
     def _iter_revisions_grouped_per_entity(
         self,

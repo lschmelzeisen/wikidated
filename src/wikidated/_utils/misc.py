@@ -124,6 +124,7 @@ def external_process(
     stdin: Optional[int],
     stdout: Optional[int],
     stderr: Optional[int],
+    cwd: Optional[Path] = None,
     name: Optional[str] = None,
     exhaust_stdout_to_log: bool = False,
     exhaust_stderr_to_log: bool = False,
@@ -133,7 +134,9 @@ def external_process(
     if name is None:
         name = args[0]
 
-    process = Popen(args, stdin=stdin, stdout=stdout, stderr=stderr, encoding="UTF-8")
+    process = Popen(
+        args, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cwd, encoding="UTF-8"
+    )
 
     try:
         yield process

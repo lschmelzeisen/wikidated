@@ -14,8 +14,11 @@
 # limitations under the License.
 #
 
+from __future__ import annotations
+
 from contextlib import contextmanager
 from logging import getLogger
+from os.path import relpath
 from pathlib import Path
 from subprocess import DEVNULL, PIPE
 from typing import IO, Iterator, Optional
@@ -29,8 +32,27 @@ class SevenZipArchive:
     def __init__(self, path: Path) -> None:
         self._path = path
 
+    @classmethod
+    def from_dir(cls, dir_: Path, path: Path) -> SevenZipArchive:
+        with external_process(
+            ("7z", "a", "-ms=off", relpath(path, dir_), "."),
+            stdin=DEVNULL,
+            stdout=PIPE,
+            stderr=PIPE,
+            cwd=dir_,
+            exhaust_stdout_to_log=True,
+            exhaust_stderr_to_log=True,
+            check_return_code_zero=True,
+        ) as _seven_zip_process:
+            pass
+        return SevenZipArchive(path)
+
     @contextmanager
     def write(self, file_name: Optional[Path] = None) -> Iterator[IO[str]]:
+        # This method seems to take longer the more file already exist in the archive.
+        # If you plan want to create archives with many files, it is better to just
+        # create a directory with all files in it as you need them, and than to convert
+        # that to an archive using SevenZipArchive.from_dir().
         file_name_str = str(file_name) if file_name else ""
         with external_process(
             ("7z", "a", "-bd", "-bso0", f"-si{file_name_str}", str(self._path)),
