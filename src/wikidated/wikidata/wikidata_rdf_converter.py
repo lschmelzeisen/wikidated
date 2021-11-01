@@ -17,7 +17,7 @@
 from typing import NamedTuple, Optional, Sequence
 
 from jpype import JClass, JException, JObject  # type: ignore
-from marisa_trie import Trie
+from marisa_trie import Trie  # type: ignore
 
 from wikidated._utils import JvmManager
 from wikidated.wikidata.wikidata_dump_pages_meta_history import WikidataRawRevision
@@ -61,7 +61,7 @@ WIKIDATA_RDF_PREFIXES = {
     "http://www.wikidata.org/value/": "wdv",
     "http://www.wikidata.org/wiki/Special:EntityData/": "wdata",
 }
-WIKIDATA_RDF_PREFIXES_TRIE = Trie(WIKIDATA_RDF_PREFIXES.keys())
+_WIKIDATA_RDF_PREFIXES_TRIE = Trie(WIKIDATA_RDF_PREFIXES.keys())
 
 
 class WikidataRdfTriple(NamedTuple):
@@ -126,30 +126,22 @@ class WikidataRdfConverter:
     def __init__(
         self, sites_table: WikidataDumpSitesTable, jvm_manager: JvmManager
     ) -> None:
-        self._wdtk_output_stream = JClass("java.io.ByteArrayOutputStream")()
-        self._wdtk_rdf_writer = JClass("org.wikidata.wdtk.rdf.RdfWriter")(
-            JClass("org.eclipse.rdf4j.rio.RDFFormat").NTRIPLES, self._wdtk_output_stream
-        )
-        self._wdtk_rdf_writer.start()
-        self._wdtk_rdf_converter = JClass("org.wikidata.wdtk.rdf.RdfConverter")(
-            self._wdtk_rdf_writer,
-            self._load_wdtk_sites(sites_table),
-            JClass(
-                "org.wikidata.wdtk.rdf.PropertyRegister"
-            ).getWikidataPropertyRegister(),
-        )
-        # Largest Java Integer, i.e., just ones in the binary representation. Used here
-        # as the aggregation of all possible flags.
-        self._wdtk_rdf_converter.setTasks(2 ** 31 - 1)
-
+        # Store object used to deserialize Wikidata JSON blobs.
         self._wdtk_json_deserializer = JClass(
             "org.wikidata.wdtk.datamodel.helpers.JsonDeserializer"
         )(JClass("org.wikidata.wdtk.datamodel.helpers.Datamodel").SITE_WIKIDATA)
-        self._wdtk_item_ri = self._wdtk_rdf_writer.WB_ITEM
-        self._wdtk_property_iri = self._wdtk_rdf_writer.WB_PROPERTY
-        self._wdtk_same_as_iri = self._wdtk_rdf_writer.getUri(
-            "http://www.w3.org/2002/07/owl#sameAs"
-        )
+
+        # Lookup Java classes needed to access WDTK's RDF serialization.
+        self._wdtk_output_stream = JClass("java.io.ByteArrayOutputStream")
+        self._wdtk_rdf_writer = JClass("org.wikidata.wdtk.rdf.RdfWriter")
+        self._wdtk_rdf_converter = JClass("org.wikidata.wdtk.rdf.RdfConverter")
+
+        # Load objects that are needed to construct the above classes.
+        self._wdtk_ntriples_format = JClass("org.eclipse.rdf4j.rio.RDFFormat").NTRIPLES
+        self._wdtk_sites = self._load_wdtk_sites(sites_table)
+        self._wdtk_property_register = JClass(
+            "org.wikidata.wdtk.rdf.PropertyRegister"
+        ).getWikidataPropertyRegister()
 
     @classmethod
     def _load_wdtk_sites(cls, sites_table: WikidataDumpSitesTable) -> JObject:
@@ -175,10 +167,17 @@ class WikidataRdfConverter:
         # TODO: document that RdfConverter basically only adds the "TASK filtering" on
         #  top of AbstractRdfConverter.
 
-        wdtk_rdf_writer = self._wdtk_rdf_writer
-        wdtk_rdf_converter = self._wdtk_rdf_converter
-
-        self._wdtk_output_stream.reset()
+        wdtk_output_stream = self._wdtk_output_stream()
+        wdtk_rdf_writer = self._wdtk_rdf_writer(
+            self._wdtk_ntriples_format, wdtk_output_stream
+        )
+        wdtk_rdf_writer.start()
+        wdtk_rdf_converter = self._wdtk_rdf_converter(
+            wdtk_rdf_writer, self._wdtk_sites, self._wdtk_property_register
+        )
+        # Largest Java Integer, i.e., just ones in the binary representation. Used here
+        # as the aggregation of all possible flags.
+        wdtk_rdf_converter.setTasks(2 ** 31 - 1)
 
         if include_schema_triples:
             wdtk_rdf_converter.writeNamespaceDeclarations()
@@ -199,7 +198,9 @@ class WikidataRdfConverter:
 
         try:
             if wdtk_document_class == "ItemDocumentImpl":
-                wdtk_rdf_converter.writeDocumentType(wdtk_resource, self._wdtk_item_ri)
+                wdtk_rdf_converter.writeDocumentType(
+                    wdtk_resource, wdtk_rdf_writer.WB_ITEM
+                )
                 wdtk_rdf_converter.writeDocumentTerms(wdtk_document)
                 wdtk_rdf_converter.writeStatements(wdtk_document)
                 wdtk_rdf_converter.writeSiteLinks(
@@ -208,7 +209,7 @@ class WikidataRdfConverter:
 
             elif wdtk_document_class == "PropertyDocumentImpl":
                 wdtk_rdf_converter.writeDocumentType(
-                    wdtk_resource, self._wdtk_property_iri
+                    wdtk_resource, wdtk_rdf_writer.WB_PROPERTY
                 )
                 wdtk_rdf_converter.writePropertyDatatype(wdtk_document)
                 wdtk_rdf_converter.writeDocumentTerms(wdtk_document)
@@ -229,7 +230,7 @@ class WikidataRdfConverter:
                 # Query Service also uses it to represent redirects.
                 wdtk_rdf_writer.writeTripleUriObject(
                     wdtk_document.getEntityId().getIri(),
-                    self._wdtk_same_as_iri,
+                    wdtk_rdf_writer.getUri("http://www.w3.org/2002/07/owl#sameAs"),
                     wdtk_document.getTargetId().getIri(),
                 )
 
@@ -248,12 +249,12 @@ class WikidataRdfConverter:
             # between revisions.
             wdtk_rdf_converter.finishDocument()
 
-        self._wdtk_rdf_writer.finish()
+        wdtk_rdf_writer.finish()
 
         return WikidataRdfRevision(
             entity=revision.entity,
             revision=revision.revision,
-            triples=self._parse_ntriples(str(self._wdtk_output_stream)),
+            triples=self._parse_ntriples(str(wdtk_output_stream)),
         )
 
     def _load_wdtk_document(self, revision: WikidataRawRevision) -> JObject:
@@ -292,23 +293,25 @@ class WikidataRdfConverter:
         # which contains the triple wd:Q34299 wdt:P1705 "Ð¡Ð°Ñ\nÐ° ÑÑÐ»Ð°"@sah .
         return [
             WikidataRdfTriple(
-                # .split(" ", 2) split into subject, predicate, and object and ensures
+                # .split(" ", 2) splits into subject, predicate, and object and ensures
                 # spaces in literals are not split.
-                *map(cls._prefix_ntriples_uri, triple.split(" ", 2))
+                *map(cls._prefix_ntriples_iri, triple.split(" ", 2))
             )
+            # Theoretically, " .\n" could also occur inside of a literal. However,
+            # parsing for that would be far more work and much slower.
             for triple in ntriples.split(" .\n")
-            if triple
+            if triple  # Necessary as "s p o .\n".split(" .\n") returns ["a b c", ""].
         ]
 
     @classmethod
-    def _prefix_ntriples_uri(cls, uri: str) -> str:
-        if not uri[0] == "<":  # if uri starts with a "<" it also ends with a ">".
-            return uri  # Argument is not an URI.
+    def _prefix_ntriples_iri(cls, iri: str) -> str:
+        if iri[0] != "<":  # If IRI starts with a "<" it also ends with a ">".
+            return iri  # Argument is not an IRI.
 
-        # uri[1:-1] is the uri without the angel brackets.
-        prefix_urls = WIKIDATA_RDF_PREFIXES_TRIE.prefixes(uri[1:-1])
-        if prefix_urls:
-            prefix_uri = prefix_urls[-1]  # Longest prefix is always at the end.
-            prefix = WIKIDATA_RDF_PREFIXES[prefix_uri]
-            return prefix + ":" + uri[len(prefix_uri) + 1 : -1]  # [+1:-1] like before.
-        return uri
+        # iri[1:-1] is the uri without the angle brackets.
+        prefix_iris = _WIKIDATA_RDF_PREFIXES_TRIE.prefixes(iri[1:-1])
+        if prefix_iris:
+            prefix_iri = prefix_iris[-1]  # Longest prefix is always at the end.
+            prefix = WIKIDATA_RDF_PREFIXES[prefix_iri]
+            return f"{prefix}:{iri[len(prefix_iri) + 1 : -1]}"  # [+1:-1] like before.
+        return iri
