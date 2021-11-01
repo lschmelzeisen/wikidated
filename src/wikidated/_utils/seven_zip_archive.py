@@ -43,7 +43,7 @@ class SevenZipArchive:
             exhaust_stdout_to_log=True,
             exhaust_stderr_to_log=True,
             check_return_code_zero=True,
-        ) as _seven_zip_process:
+        ) as _:
             pass
         return SevenZipArchive(path)
 

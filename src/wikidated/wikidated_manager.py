@@ -16,7 +16,7 @@
 
 from pathlib import Path
 
-from wikidated._utils import JavaArtifact, JavaDependencyDownloader, JvmManager
+from wikidated._utils import JavaArtifact, JavaDependencyDownloader
 from wikidated.wikidata import WikidataDump
 from wikidated.wikidated_dataset import WikidatedDataset
 
@@ -24,11 +24,25 @@ from wikidated.wikidated_dataset import WikidatedDataset
 class WikidatedManager:
     def __init__(self, data_dir: Path) -> None:
         self._data_dir = data_dir
-        self._jars_dir = self._data_dir / "jars"
-        self._maven_dir = self._data_dir / "maven"
+
+    @property
+    def data_dir(self) -> Path:
+        return self._data_dir
+
+    @property
+    def jars_dir(self) -> Path:
+        return self._data_dir / "jars"
+
+    @property
+    def maven_dir(self) -> Path:
+        return self._data_dir / "maven"
 
     def custom(self, wikidata_dump: WikidataDump) -> WikidatedDataset:
-        return WikidatedDataset(self._data_dir, wikidata_dump, self.jvm_manager)
+        return WikidatedDataset(
+            self.data_dir / f"wikidated-custom-{wikidata_dump.version}",
+            self.jars_dir,
+            wikidata_dump,
+        )
 
     def v1_0(self) -> WikidatedDataset:
         raise NotImplementedError()  # TODO
@@ -41,7 +55,7 @@ class WikidatedManager:
 
     def download_java_dependencies(self) -> None:
         java_dependency_downloader = JavaDependencyDownloader(
-            jars_dir=self._jars_dir, maven_dir=self._maven_dir
+            jars_dir=self.jars_dir, maven_dir=self.maven_dir
         )
         java_dependency_downloader.download_java_dependencies(
             (
@@ -51,6 +65,3 @@ class WikidatedManager:
                 JavaArtifact("org.wikidata.wdtk", "wdtk-rdf", "0.12.1"),
             )
         )
-
-    def jvm_manager(self) -> JvmManager:
-        return JvmManager(jars_dir=self._jars_dir)
