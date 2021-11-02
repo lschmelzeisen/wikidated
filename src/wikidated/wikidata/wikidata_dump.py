@@ -27,6 +27,7 @@ from pydantic import BaseModel as PydanticModel
 from pydantic import validator
 from tqdm import tqdm  # type: ignore
 
+from wikidated._utils import RangeMap
 from wikidated.wikidata.wikidata_dump_file import WikidataDumpFile
 from wikidated.wikidata.wikidata_dump_pages_meta_history import (
     WikidataDumpPagesMetaHistory,
@@ -66,7 +67,7 @@ class WikidataDump:
             dump_files.append(self.sites_table())
 
         if pages_meta_history:
-            dump_files.extend(self.pages_meta_history())
+            dump_files.extend(self.pages_meta_history().values())
 
         with tqdm(
             total=len(dump_files), dynamic_ncols=True, position=1
@@ -86,8 +87,13 @@ class WikidataDump:
     def sites_table(self) -> WikidataDumpSitesTable:
         return self._construct_dumps(WikidataDumpSitesTable, "sitestable")[0]
 
-    def pages_meta_history(self) -> Sequence[WikidataDumpPagesMetaHistory]:
-        return self._construct_dumps(WikidataDumpPagesMetaHistory, "metahistory7zdump")
+    def pages_meta_history(self) -> RangeMap[WikidataDumpPagesMetaHistory]:
+        result = RangeMap[WikidataDumpPagesMetaHistory]()
+        for dump_file in self._construct_dumps(
+            WikidataDumpPagesMetaHistory, "metahistory7zdump"
+        ):
+            result[dump_file.page_id_range] = dump_file
+        return result
 
     def _construct_dumps(
         self, dump_type: Type[_T_WikidataDumpFile], dump_type_id: str
