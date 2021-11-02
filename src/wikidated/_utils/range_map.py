@@ -15,6 +15,7 @@
 #
 
 from typing import (
+    AbstractSet,
     Generic,
     Iterator,
     MutableMapping,
@@ -22,6 +23,7 @@ from typing import (
     Tuple,
     TypeVar,
     Union,
+    cast,
 )
 
 _T_Value = TypeVar("_T_Value")
@@ -116,6 +118,9 @@ class RangeMap(
     def __iter__(self) -> Iterator[range]:
         for item_key, _item_value in self._data:
             yield item_key
+
+    def keys(self) -> AbstractSet[range]:
+        return cast(AbstractSet[range], super().keys())
 
     def clear(self) -> None:
         self._data.clear()
