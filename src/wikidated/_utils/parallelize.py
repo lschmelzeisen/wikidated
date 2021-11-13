@@ -82,6 +82,7 @@ def parallelize(
     max_workers: Optional[int] = None,
     update_frequency: float = 5.0,
     reraise_exceptions: bool = True,
+    progress_bar_desc: Optional[str] = None,
 ) -> Iterator[_T_Return]:
     if max_workers is None:
         max_workers = cpu_count()
@@ -96,7 +97,10 @@ def parallelize(
         initializer=_init_worker_wrapper,
         initargs=(init_worker_func, exit_worker_func),
     ) as pool, tqdm(
-        total=num_arguments, dynamic_ncols=True, position=-max_workers
+        total=num_arguments,
+        desc=progress_bar_desc,
+        dynamic_ncols=True,
+        position=-max_workers,
     ) as progress_bar_overall, Manager() as shared_manager:
         progress_bar_state: MutableMapping[
             str, Tuple[Union[int, float], Union[int, float]]

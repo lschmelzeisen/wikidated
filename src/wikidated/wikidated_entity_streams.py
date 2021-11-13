@@ -42,11 +42,7 @@ _LOGGER = getLogger(__name__)
 
 
 class WikidatedEntityStreamsPart:
-    def __init__(
-        self,
-        dataset_dir: Path,
-        page_id_range: range,
-    ) -> None:
+    def __init__(self, dataset_dir: Path, page_id_range: range) -> None:
         self._path = dataset_dir / (
             f"{dataset_dir.name}-entity-streams"
             f"-p{page_id_range.start}-p{page_id_range.stop - 1}.7z"
@@ -202,7 +198,7 @@ class WikidatedEntityStreamsManager:
             init_worker_func=self._init_worker_with_rdf_converter,
             exit_worker_func=self._exit_worker_with_rdf_converter,
             max_workers=max_workers,
-            reraise_exceptions=True,
+            progress_bar_desc="Entity Streams",
         ):
             pass
 

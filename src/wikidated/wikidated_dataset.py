@@ -22,6 +22,9 @@ from typing import Iterator, Optional
 from wikidated.wikidata import WikidataDump
 from wikidated.wikidated_entity_streams import WikidatedEntityStreamsManager
 from wikidated.wikidated_revision import WikidatedRevision
+from wikidated.wikidated_sorted_entity_streams import (
+    WikidatedSortedEntityStreamsManager,
+)
 
 
 class WikidatedDataset:
@@ -35,6 +38,9 @@ class WikidatedDataset:
         self._entity_streams_manager = WikidatedEntityStreamsManager(
             dataset_dir, jars_dir, self._wikidata_dump.pages_meta_history.keys()
         )
+        self._sorted_entity_streams_manager = WikidatedSortedEntityStreamsManager(
+            dataset_dir, self._wikidata_dump.pages_meta_history.keys()
+        )
 
     def download(self) -> None:
         raise NotImplementedError()  # TODO
@@ -45,6 +51,7 @@ class WikidatedDataset:
             self._wikidata_dump.pages_meta_history,
             max_workers=max_workers,
         )
+        self._sorted_entity_streams_manager.build(self._entity_streams_manager)
 
     # TODO: rethink what kind of accessor methods might be used here in practice.
 
