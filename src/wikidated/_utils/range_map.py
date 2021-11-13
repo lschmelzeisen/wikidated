@@ -110,10 +110,9 @@ class RangeMap(
             raise TypeError("key must be a range.")
 
         i = self._index(key.start)
-        if i != -1 and key == self._data[i][0]:
-            del self._data[i - 1]
-
-        raise KeyError(key)
+        if i == -1 or key != self._data[i][0]:
+            raise KeyError(key)
+        del self._data[i]
 
     def __iter__(self) -> Iterator[range]:
         for item_key, _item_value in self._data:
