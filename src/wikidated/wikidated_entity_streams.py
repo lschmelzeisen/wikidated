@@ -18,17 +18,18 @@ from itertools import chain, groupby
 from logging import getLogger
 from pathlib import Path
 from shutil import rmtree
-from typing import Iterator, Mapping, MutableSet, Optional, Tuple
+from typing import Iterable, Iterator, Mapping, MutableSet, Optional, Tuple, Union, cast
 
 from wikidated._utils import (
     JvmManager,
     ParallelizeUpdateProgressFunc,
+    RangeMap,
     SevenZipArchive,
     parallelize,
 )
 from wikidated.wikidata import (
-    WikidataDump,
     WikidataDumpPagesMetaHistory,
+    WikidataDumpSitesTable,
     WikidataEntityMeta,
     WikidataRawRevision,
     WikidataRdfConversionError,
@@ -44,14 +45,13 @@ class WikidatedEntityStreamsPart:
     def __init__(
         self,
         dataset_dir: Path,
-        pages_meta_history: WikidataDumpPagesMetaHistory,
+        page_id_range: range,
     ) -> None:
         self._path = dataset_dir / (
             f"{dataset_dir.name}-entity-streams"
-            f"-p{pages_meta_history.page_id_range.start}"
-            f"-p{pages_meta_history.page_id_range.stop - 1}.7z"
+            f"-p{page_id_range.start}-p{page_id_range.stop - 1}.7z"
         )
-        self._pages_meta_history = pages_meta_history
+        self._page_id_range = page_id_range
 
     @property
     def path(self) -> Path:
@@ -59,15 +59,15 @@ class WikidatedEntityStreamsPart:
 
     @property
     def page_id_range(self) -> range:
-        return self._pages_meta_history.page_id_range
+        return self._page_id_range
 
     def iter_revisions(
-        self, entity_page_id: Optional[int] = None
+        self, page_id: Optional[int] = None
     ) -> Iterator[WikidatedRevision]:
         assert self._path.exists()
         archive = SevenZipArchive(self._path)
         with archive.read(
-            self._file_name_from_page_id(entity_page_id) if entity_page_id else None
+            self._file_name_from_page_id(page_id) if page_id else None
         ) as fd:
             for line in fd:
                 yield WikidatedRevision.parse_raw(line)
@@ -86,10 +86,16 @@ class WikidatedEntityStreamsPart:
     def _page_id_from_file_name(cls, file_name: Path) -> int:
         return int(file_name.name[: -len(".jsonl")])
 
-    def build(self, rdf_converter: WikidataRdfConverter) -> Iterator[WikidatedRevision]:
+    def build(
+        self,
+        pages_meta_history: WikidataDumpPagesMetaHistory,
+        rdf_converter: WikidataRdfConverter,
+    ) -> Iterator[WikidatedRevision]:
         if self._path.exists():
             _LOGGER.debug(f"File '{self._path}' already exists, skipping building.")
             return iter([])
+
+        assert self.page_id_range == pages_meta_history.page_id_range
 
         tmp_dir = self.path.parent / ("tmp." + self._path.name)
         if tmp_dir.exists():
@@ -99,7 +105,9 @@ class WikidatedEntityStreamsPart:
             rmtree(tmp_dir)
         tmp_dir.mkdir(exist_ok=True, parents=True)
 
-        for entity_meta, revisions in self._iter_revisions_grouped_per_entity():
+        for entity_meta, revisions in self._iter_revisions_grouped_per_entity(
+            pages_meta_history
+        ):
             wikidated_revisions = self._iter_wikidated_revisions(
                 revisions, rdf_converter
             )
@@ -126,11 +134,12 @@ class WikidatedEntityStreamsPart:
         SevenZipArchive.from_dir(tmp_dir, self._path)
         rmtree(tmp_dir)
 
+    @classmethod
     def _iter_revisions_grouped_per_entity(
-        self,
+        cls, pages_meta_history: WikidataDumpPagesMetaHistory
     ) -> Iterator[Tuple[WikidataEntityMeta, Iterator[WikidataRawRevision]]]:
         return groupby(
-            self._pages_meta_history.iter_revisions(display_progress_bar=False),
+            pages_meta_history.iter_revisions(display_progress_bar=False),
             lambda revision: revision.entity,
         )
 
@@ -167,21 +176,29 @@ class WikidatedEntityStreamsManager:
         self,
         dataset_dir: Path,
         jars_dir: Path,
-        wikidata_dump: WikidataDump,
+        page_id_ranges: Union[Iterator[range], Iterable[range]],
     ) -> None:
-        self._parts = [
-            WikidatedEntityStreamsPart(dataset_dir, pages_meta_history)
-            for pages_meta_history in wikidata_dump.pages_meta_history()
-        ]
-        self._sites_table = wikidata_dump.sites_table()
+        self._parts = RangeMap[WikidatedEntityStreamsPart]()
+        for page_id_range in page_id_ranges:
+            self._parts[page_id_range] = WikidatedEntityStreamsPart(
+                dataset_dir, page_id_range
+            )
         self._jars_dir = jars_dir
         self._jvm_manager: Optional[JvmManager] = None
+        self._sites_table: Optional[WikidataDumpSitesTable] = None
 
-    def build(self, max_workers: Optional[int] = 4) -> None:
+    def build(
+        self,
+        sites_table: WikidataDumpSitesTable,
+        pages_meta_history: RangeMap[WikidataDumpPagesMetaHistory],
+        max_workers: Optional[int] = 4,
+    ) -> None:
+        self._sites_table = sites_table
         for _ in parallelize(
             self._build_part,
-            self._parts,
+            self._parts.values(),
             num_arguments=len(self._parts),
+            extra_arguments={"pages_meta_history": pages_meta_history},
             init_worker_func=self._init_worker_with_rdf_converter,
             exit_worker_func=self._exit_worker_with_rdf_converter,
             max_workers=max_workers,
@@ -198,13 +215,20 @@ class WikidatedEntityStreamsManager:
     ) -> None:
         name = argument.path.name
         page_id_range = argument.page_id_range
+        pages_meta_history = cast(
+            RangeMap[WikidataDumpPagesMetaHistory],
+            extra_arguments["pages_meta_history"],
+        )
+        assert isinstance(pages_meta_history, RangeMap)
         rdf_converter = extra_arguments["rdf_converter"]
         assert isinstance(rdf_converter, WikidataRdfConverter)
 
         progress_current = 0
         progress_total = len(page_id_range)
         update_progress(name, progress_current, progress_total)
-        for revision in argument.build(rdf_converter):
+        for revision in argument.build(
+            pages_meta_history[page_id_range], rdf_converter
+        ):
             # TODO: count number of processed revisions and exceptions?
             if progress_current != revision.entity.page_id - page_id_range.start:
                 progress_current = revision.entity.page_id - page_id_range.start
@@ -214,6 +238,7 @@ class WikidatedEntityStreamsManager:
     def _init_worker_with_rdf_converter(self) -> Mapping[str, object]:
         self._jvm_manager = JvmManager(jars_dir=self._jars_dir)
         # TODO: log jvm errors?
+        assert self._sites_table is not None
         return {
             "rdf_converter": WikidataRdfConverter(self._sites_table, self._jvm_manager)
         }

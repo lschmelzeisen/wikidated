@@ -31,15 +31,20 @@ class WikidatedDataset:
         jars_dir: Path,
         wikidata_dump: WikidataDump,
     ) -> None:
+        self._wikidata_dump = wikidata_dump
         self._entity_streams_manager = WikidatedEntityStreamsManager(
-            dataset_dir, jars_dir, wikidata_dump
+            dataset_dir, jars_dir, self._wikidata_dump.pages_meta_history.keys()
         )
 
     def download(self) -> None:
         raise NotImplementedError()  # TODO
 
     def build(self, *, max_workers: Optional[int] = 4) -> None:
-        self._entity_streams_manager.build(max_workers=max_workers)
+        self._entity_streams_manager.build(
+            self._wikidata_dump.sites_table,
+            self._wikidata_dump.pages_meta_history,
+            max_workers=max_workers,
+        )
 
     # TODO: rethink what kind of accessor methods might be used here in practice.
 
