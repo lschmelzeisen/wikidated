@@ -50,9 +50,19 @@ class WikidataDump:
         self._dump_dir = data_dir / "dumpfiles"
         self._version = version
         self._mirror = mirror
+
         self._dump_status = _WikidataDumpStatus.load(
             self._dump_dir, self._version, self._mirror
         )
+
+        self._sites_table = self._construct_dumps(WikidataDumpSitesTable, "sitestable")[
+            0
+        ]
+        self._pages_meta_history = RangeMap[WikidataDumpPagesMetaHistory]()
+        for dump_file in self._construct_dumps(
+            WikidataDumpPagesMetaHistory, "metahistory7zdump"
+        ):
+            self._pages_meta_history[dump_file.page_id_range] = dump_file
 
     @property
     def version(self) -> str:
@@ -64,10 +74,10 @@ class WikidataDump:
         dump_files: MutableSequence[WikidataDumpFile] = []
 
         if sites_table:
-            dump_files.append(self.sites_table())
+            dump_files.append(self.sites_table)
 
         if pages_meta_history:
-            dump_files.extend(self.pages_meta_history().values())
+            dump_files.extend(self.pages_meta_history.values())
 
         with tqdm(
             total=len(dump_files), dynamic_ncols=True, position=1
@@ -84,16 +94,13 @@ class WikidataDump:
                 progress_bar_files.update(1)
                 progress_bar_size.update(dump_file.size)
 
+    @property
     def sites_table(self) -> WikidataDumpSitesTable:
-        return self._construct_dumps(WikidataDumpSitesTable, "sitestable")[0]
+        return self._sites_table
 
+    @property
     def pages_meta_history(self) -> RangeMap[WikidataDumpPagesMetaHistory]:
-        result = RangeMap[WikidataDumpPagesMetaHistory]()
-        for dump_file in self._construct_dumps(
-            WikidataDumpPagesMetaHistory, "metahistory7zdump"
-        ):
-            result[dump_file.page_id_range] = dump_file
-        return result
+        return self._pages_meta_history
 
     def _construct_dumps(
         self, dump_type: Type[_T_WikidataDumpFile], dump_type_id: str
