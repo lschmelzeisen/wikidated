@@ -19,12 +19,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterator, Optional
 
+from wikidated._wikidated_sorted_entity_streams import (
+    WikidatedSortedEntityStreamsManager,
+)
 from wikidated.wikidata import WikidataDump
 from wikidated.wikidated_entity_streams import WikidatedEntityStreamsManager
 from wikidated.wikidated_revision import WikidatedRevision
-from wikidated.wikidated_sorted_entity_streams import (
-    WikidatedSortedEntityStreamsManager,
-)
 
 
 class WikidatedDataset:
