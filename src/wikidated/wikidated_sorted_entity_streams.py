@@ -18,7 +18,7 @@ from logging import getLogger
 from pathlib import Path
 from typing import Iterable, Iterator, Union
 
-from tqdm import tqdm
+from tqdm import tqdm  # type: ignore
 
 from wikidated._utils import RangeMap, SevenZipArchive
 from wikidated.wikidated_entity_streams import (
