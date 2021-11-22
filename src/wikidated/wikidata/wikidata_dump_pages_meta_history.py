@@ -66,18 +66,8 @@ class WikidataDumpPagesMetaHistory(WikidataDumpFile):
                 f"File '{self._path.name}' is not a Wikidata dump pages-meta-history "
                 f"file (based on file name)."
             )
-        self._date = date(int(match["year"]), int(match["month"]), int(match["day"]))
-        self._page_id_range = range(
-            int(match["min_page_id"]), int(match["max_page_id"]) + 1
-        )
-
-    @property
-    def date(self) -> date:
-        return self._date
-
-    @property
-    def page_id_range(self) -> range:
-        return self._page_id_range
+        self.date = date(int(match["year"]), int(match["month"]), int(match["day"]))
+        self.page_ids = range(int(match["min_page_id"]), int(match["max_page_id"]) + 1)
 
     def site_info(self) -> WikidataSiteInfo:
         assert self._path.exists()
@@ -127,9 +117,7 @@ class WikidataDumpPagesMetaHistory(WikidataDumpFile):
         assert self._path.exists()
 
         progress_bar: Optional[tqdm] = (
-            tqdm(
-                desc=self._path.name, total=len(self._page_id_range), dynamic_ncols=True
-            )
+            tqdm(desc=self._path.name, total=len(self.page_ids), dynamic_ncols=True)
             if display_progress_bar
             else None
         )

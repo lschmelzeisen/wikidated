@@ -22,62 +22,55 @@ from tqdm import tqdm  # type: ignore
 
 from wikidated._utils import RangeMap, SevenZipArchive
 from wikidated.wikidated_entity_streams import (
+    WikidatedEntityStreamsFile,
     WikidatedEntityStreamsManager,
-    WikidatedEntityStreamsPart,
 )
 from wikidated.wikidated_revision import WikidatedRevision
 
 _LOGGER = getLogger(__name__)
 
 
-class WikidatedSortedEntityStreamsPart:
-    def __init__(self, dataset_dir: Path, page_id_range: range) -> None:
-        self._path = dataset_dir / (
+class WikidatedSortedEntityStreamsFile:
+    def __init__(self, dataset_dir: Path, page_ids: range) -> None:
+        self.path = dataset_dir / (
             f"{dataset_dir.name}-sorted-entity-streams"
-            f"-p{page_id_range.start}-p{page_id_range.stop - 1}.7z"
+            f"-p{page_ids.start}-p{page_ids.stop - 1}.7z"
         )
-        self._page_id_range = page_id_range
-
-    @property
-    def path(self) -> Path:
-        return self._path
-
-    @property
-    def page_id_range(self) -> range:
-        return self._page_id_range
+        self.page_ids = page_ids
 
     def iter_revisions(self) -> Iterator[WikidatedRevision]:
-        assert self._path.exists()
-        archive = SevenZipArchive(self._path)
+        assert self.path.exists()
+        archive = SevenZipArchive(self.path)
         with archive.read() as fd:
             for line in fd:
                 yield WikidatedRevision.parse_raw(line)
 
-    def build(self, entity_streams_part: WikidatedEntityStreamsPart) -> None:
-        if self._path.exists():
-            _LOGGER.debug(f"File '{self._path}' already exists, skipping building.")
+    def build(self, entity_streams_part: WikidatedEntityStreamsFile) -> None:
+        if self.path.exists():
+            _LOGGER.debug(f"File '{self.path}' already exists, skipping building.")
+            return
 
-        assert self.page_id_range == entity_streams_part.page_id_range
+        assert self.page_ids == entity_streams_part.page_ids
 
         revisions = list(entity_streams_part.iter_revisions())
         revisions.sort(key=lambda revision: revision.revision.revision_id)
-        with SevenZipArchive(self._path).write() as fd:
+        with SevenZipArchive(self.path).write() as fd:
             for revision in revisions:
                 fd.write(revision.json() + "\n")
 
 
 class WikidatedSortedEntityStreamsManager:
     def __init__(
-        self, dataset_dir: Path, page_id_ranges: Union[Iterator[range], Iterable[range]]
+        self,
+        dataset_dir: Path,
+        page_ids_stream: Union[Iterator[range], Iterable[range]],
     ):
-        self._parts = RangeMap[WikidatedSortedEntityStreamsPart]()
-        for page_id_range in page_id_ranges:
-            self._parts[page_id_range] = WikidatedSortedEntityStreamsPart(
-                dataset_dir, page_id_range
+        self._files = RangeMap[WikidatedSortedEntityStreamsFile]()
+        for page_ids in page_ids_stream:
+            self._files[page_ids] = WikidatedSortedEntityStreamsFile(
+                dataset_dir, page_ids
             )
 
     def build(self, entity_streams_manager: WikidatedEntityStreamsManager) -> None:
-        for page_id_range, part in tqdm(
-            self._parts.items(), desc="Sorted Entity Streams"
-        ):
-            part.build(entity_streams_manager._parts[page_id_range])
+        for page_ids, part in tqdm(self._files.items(), desc="Sorted Entity Streams"):
+            part.build(entity_streams_manager._files[page_ids])

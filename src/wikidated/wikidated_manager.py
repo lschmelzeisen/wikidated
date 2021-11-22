@@ -39,7 +39,7 @@ class WikidatedManager:
 
     def custom(self, wikidata_dump: WikidataDump) -> WikidatedDataset:
         return WikidatedDataset(
-            self.data_dir / f"wikidated-custom-{wikidata_dump.version}",
+            self.data_dir / f"wikidated-custom-{wikidata_dump.version:%4Y%2m%2d}",
             self.jars_dir,
             wikidata_dump,
         )

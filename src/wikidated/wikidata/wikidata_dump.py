@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import date, datetime
 from logging import getLogger
 from pathlib import Path
 from typing import Mapping, MutableSequence, Sequence, Type, TypeVar
@@ -26,6 +26,7 @@ import requests
 from pydantic import BaseModel as PydanticModel
 from pydantic import validator
 from tqdm import tqdm  # type: ignore
+from typing_extensions import Final
 
 from wikidated._utils import RangeMap
 from wikidated.wikidata.wikidata_dump_file import WikidataDumpFile
@@ -43,30 +44,26 @@ class WikidataDump:
     def __init__(
         self,
         data_dir: Path,
-        version: str,
+        version: date,
         *,
         mirror: str = "https://dumps.wikimedia.org",
     ) -> None:
         self._dump_dir = data_dir / "dumpfiles"
-        self._version = version
-        self._mirror = mirror
+        self.version: Final = version
+        self.mirror: Final = mirror
 
         self._dump_status = _WikidataDumpStatus.load(
-            self._dump_dir, self._version, self._mirror
+            self._dump_dir, self.version, self.mirror
         )
 
-        self._sites_table = self._construct_dumps(WikidataDumpSitesTable, "sitestable")[
-            0
-        ]
-        self._pages_meta_history = RangeMap[WikidataDumpPagesMetaHistory]()
+        self.sites_table: Final = self._construct_dumps(
+            WikidataDumpSitesTable, "sitestable"
+        )[0]
+        self.pages_meta_history: Final = RangeMap[WikidataDumpPagesMetaHistory]()
         for dump_file in self._construct_dumps(
             WikidataDumpPagesMetaHistory, "metahistory7zdump"
         ):
-            self._pages_meta_history[dump_file.page_id_range] = dump_file
-
-    @property
-    def version(self) -> str:
-        return self._version
+            self.pages_meta_history[dump_file.page_ids] = dump_file
 
     def download(
         self, *, sites_table: bool = True, pages_meta_history: bool = True
@@ -94,21 +91,13 @@ class WikidataDump:
                 progress_bar_files.update(1)
                 progress_bar_size.update(dump_file.size)
 
-    @property
-    def sites_table(self) -> WikidataDumpSitesTable:
-        return self._sites_table
-
-    @property
-    def pages_meta_history(self) -> RangeMap[WikidataDumpPagesMetaHistory]:
-        return self._pages_meta_history
-
     def _construct_dumps(
         self, dump_type: Type[_T_WikidataDumpFile], dump_type_id: str
     ) -> Sequence[_T_WikidataDumpFile]:
         return [
             dump_type(
                 path=self._dump_dir / path,
-                url=self._mirror + dump_status_file.url,
+                url=self.mirror + dump_status_file.url,
                 sha1=dump_status_file.sha1,
                 size=dump_status_file.size,
             )
@@ -140,10 +129,10 @@ class _WikidataDumpStatus(PydanticModel):
     version: str
 
     @classmethod
-    def load(cls, dump_dir: Path, version: str, mirror: str) -> _WikidataDumpStatus:
-        path = dump_dir / f"wikidatawiki-{version}-dumpstatus.json"
+    def load(cls, dump_dir: Path, version: date, mirror: str) -> _WikidataDumpStatus:
+        path = dump_dir / f"wikidatawiki-{version:%4Y%2m%2d}-dumpstatus.json"
         if not path.exists():
-            url = f"{mirror}/wikidatawiki/{version}/dumpstatus.json"
+            url = f"{mirror}/wikidatawiki/{version:%4Y%2m%2d}/dumpstatus.json"
             _LOGGER.debug(f"Downloading dump status from URL '{url}'...")
 
             response = requests.get(url)

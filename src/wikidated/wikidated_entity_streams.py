@@ -41,27 +41,19 @@ from wikidated.wikidated_revision import WikidatedRevision
 _LOGGER = getLogger(__name__)
 
 
-class WikidatedEntityStreamsPart:
-    def __init__(self, dataset_dir: Path, page_id_range: range) -> None:
-        self._path = dataset_dir / (
+class WikidatedEntityStreamsFile:
+    def __init__(self, dataset_dir: Path, page_ids: range) -> None:
+        self.path = dataset_dir / (
             f"{dataset_dir.name}-entity-streams"
-            f"-p{page_id_range.start}-p{page_id_range.stop - 1}.7z"
+            f"-p{page_ids.start}-p{page_ids.stop - 1}.7z"
         )
-        self._page_id_range = page_id_range
-
-    @property
-    def path(self) -> Path:
-        return self._path
-
-    @property
-    def page_id_range(self) -> range:
-        return self._page_id_range
+        self.page_ids = page_ids
 
     def iter_revisions(
         self, page_id: Optional[int] = None
     ) -> Iterator[WikidatedRevision]:
-        assert self._path.exists()
-        archive = SevenZipArchive(self._path)
+        assert self.path.exists()
+        archive = SevenZipArchive(self.path)
         with archive.read(
             self._file_name_from_page_id(page_id) if page_id else None
         ) as fd:
@@ -69,8 +61,8 @@ class WikidatedEntityStreamsPart:
                 yield WikidatedRevision.parse_raw(line)
 
     def iter_page_ids(self) -> Iterator[int]:
-        assert self._path.exists()
-        entity_streams_archive = SevenZipArchive(self._path)
+        assert self.path.exists()
+        entity_streams_archive = SevenZipArchive(self.path)
         for entity_file_name in entity_streams_archive.iter_file_names():
             yield self._page_id_from_file_name(entity_file_name)
 
@@ -87,13 +79,13 @@ class WikidatedEntityStreamsPart:
         pages_meta_history: WikidataDumpPagesMetaHistory,
         rdf_converter: WikidataRdfConverter,
     ) -> Iterator[WikidatedRevision]:
-        if self._path.exists():
-            _LOGGER.debug(f"File '{self._path}' already exists, skipping building.")
+        if self.path.exists():
+            _LOGGER.debug(f"File '{self.path}' already exists, skipping building.")
             return iter([])
 
-        assert self.page_id_range == pages_meta_history.page_id_range
+        assert self.page_ids == pages_meta_history.page_ids
 
-        tmp_dir = self.path.parent / ("tmp." + self._path.name)
+        tmp_dir = self.path.parent / ("tmp." + self.path.name)
         if tmp_dir.exists():
             # TODO: If desired, one could rewrite this for better recovery from
             #  crashes. That is, we could reuse entities already processed in tmp_dir
@@ -127,7 +119,7 @@ class WikidatedEntityStreamsPart:
                     fd.write(wikidated_revision.json() + "\n")
                     yield wikidated_revision
 
-        SevenZipArchive.from_dir(tmp_dir, self._path)
+        SevenZipArchive.from_dir(tmp_dir, self.path)
         rmtree(tmp_dir)
 
     @classmethod
@@ -172,13 +164,11 @@ class WikidatedEntityStreamsManager:
         self,
         dataset_dir: Path,
         jars_dir: Path,
-        page_id_ranges: Union[Iterator[range], Iterable[range]],
+        page_ids_stream: Union[Iterator[range], Iterable[range]],
     ) -> None:
-        self._parts = RangeMap[WikidatedEntityStreamsPart]()
-        for page_id_range in page_id_ranges:
-            self._parts[page_id_range] = WikidatedEntityStreamsPart(
-                dataset_dir, page_id_range
-            )
+        self._files = RangeMap[WikidatedEntityStreamsFile]()
+        for page_ids in page_ids_stream:
+            self._files[page_ids] = WikidatedEntityStreamsFile(dataset_dir, page_ids)
         self._jars_dir = jars_dir
         self._jvm_manager: Optional[JvmManager] = None
         self._sites_table: Optional[WikidataDumpSitesTable] = None
@@ -192,8 +182,8 @@ class WikidatedEntityStreamsManager:
         self._sites_table = sites_table
         for _ in parallelize(
             self._build_part,
-            self._parts.values(),
-            num_arguments=len(self._parts),
+            self._files.values(),
+            num_arguments=len(self._files),
             extra_arguments={"pages_meta_history": pages_meta_history},
             init_worker_func=self._init_worker_with_rdf_converter,
             exit_worker_func=self._exit_worker_with_rdf_converter,
@@ -205,12 +195,12 @@ class WikidatedEntityStreamsManager:
     @classmethod
     def _build_part(
         cls,
-        argument: WikidatedEntityStreamsPart,
+        argument: WikidatedEntityStreamsFile,
         update_progress: ParallelizeUpdateProgressFunc,
         **extra_arguments: object,
     ) -> None:
         name = argument.path.name
-        page_id_range = argument.page_id_range
+        page_ids = argument.page_ids
         pages_meta_history = cast(
             RangeMap[WikidataDumpPagesMetaHistory],
             extra_arguments["pages_meta_history"],
@@ -220,14 +210,12 @@ class WikidatedEntityStreamsManager:
         assert isinstance(rdf_converter, WikidataRdfConverter)
 
         progress_current = 0
-        progress_total = len(page_id_range)
+        progress_total = len(page_ids)
         update_progress(name, progress_current, progress_total)
-        for revision in argument.build(
-            pages_meta_history[page_id_range], rdf_converter
-        ):
+        for revision in argument.build(pages_meta_history[page_ids], rdf_converter):
             # TODO: count number of processed revisions and exceptions?
-            if progress_current != revision.entity.page_id - page_id_range.start:
-                progress_current = revision.entity.page_id - page_id_range.start
+            if progress_current != revision.entity.page_id - page_ids.start:
+                progress_current = revision.entity.page_id - page_ids.start
                 update_progress(name, progress_current, progress_total)
         update_progress(name, progress_total, progress_total)
 
