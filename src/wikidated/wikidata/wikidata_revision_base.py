@@ -43,3 +43,55 @@ class WikidataRevisionMeta(PydanticModel):
 class WikidataRevisionBase(PydanticModel):
     entity: WikidataEntityMeta
     revision: WikidataRevisionMeta
+
+    @property
+    def entity_id(self) -> str:
+        return self.entity.entity_id
+
+    @property
+    def page_id(self) -> int:
+        return self.entity.page_id
+
+    @property
+    def namespace(self) -> int:
+        return self.entity.namespace
+
+    @property
+    def revision_id(self) -> int:
+        return self.revision.revision_id
+
+    @property
+    def parent_revision_id(self) -> Optional[int]:
+        return self.revision.parent_revision_id
+
+    @property
+    def timestamp(self) -> datetime:
+        return self.revision.timestamp
+
+    @property
+    def contributor(self) -> Optional[str]:
+        return self.revision.contributor
+
+    @property
+    def contributor_id(self) -> Optional[int]:
+        return self.revision.contributor_id
+
+    @property
+    def is_minor(self) -> bool:
+        return self.revision.is_minor
+
+    @property
+    def comment(self) -> Optional[str]:
+        return self.revision.comment
+
+    @property
+    def wikibase_model(self) -> str:
+        return self.revision.wikibase_model
+
+    @property
+    def wikibase_format(self) -> str:
+        return self.revision.wikibase_format
+
+    @property
+    def sha1(self) -> Optional[str]:
+        return self.revision.sha1
