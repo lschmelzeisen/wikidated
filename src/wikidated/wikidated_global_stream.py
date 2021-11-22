@@ -47,7 +47,7 @@ class WikidatedGlobalStreamFile:
         return range(self.month.toordinal(), next_month(self.month).toordinal())
 
     @classmethod
-    def archive_path_pattern(cls, dataset_dir: Path) -> str:
+    def archive_path_glob(cls, dataset_dir: Path) -> str:
         return f"{dataset_dir.name}-global-stream-d*-r*-r*.7z"
 
     @classmethod
@@ -80,13 +80,13 @@ class WikidatedGlobalStreamFile:
     @classmethod
     def _make_archive_component_path(cls, day: date, revision_ids: range) -> Path:
         return Path(
-            f"{day:%4Y%2m%2d}-r{revision_ids.start}-r{revision_ids.stop - 1}.jsonl"
+            f"d{day:%4Y%2m%2d}-r{revision_ids.start}-r{revision_ids.stop - 1}.jsonl"
         )
 
     @classmethod
     def _parse_archive_component_path(cls, path: Path) -> Tuple[date, range]:
         match = re.match(
-            r"(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})"
+            r"d(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})"
             r"-r(?P<min_revision_id>\d+)-r(?P<max_revision_id>\d+).7z$",
             path.name,
         )
@@ -173,7 +173,7 @@ class WikidatedGlobalStreamManager:
 
     def load(self) -> None:
         for path in self._dataset_dir.glob(
-            WikidatedGlobalStreamFile.archive_path_pattern(self._dataset_dir)
+            WikidatedGlobalStreamFile.archive_path_glob(self._dataset_dir)
         ):
             file = WikidatedGlobalStreamFile.load(path)
             self._files_by_months[file.months] = file
@@ -186,7 +186,9 @@ class WikidatedGlobalStreamManager:
     ) -> None:
         sorted_entity_streams_iters = [
             sorted_entity_streams.iter_revisions()
-            for sorted_entity_streams in sorted_entity_streams_manager._files.values()
+            for sorted_entity_streams in (
+                sorted_entity_streams_manager._files_by_page_ids.values()
+            )
         ]
         sorted_revisions = iter(
             heapq.merge(

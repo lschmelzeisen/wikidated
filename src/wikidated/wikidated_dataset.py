@@ -37,10 +37,10 @@ class WikidatedDataset:
     ) -> None:
         self._wikidata_dump = wikidata_dump
         self._entity_streams_manager = WikidatedEntityStreamsManager(
-            dataset_dir, jars_dir, self._wikidata_dump.pages_meta_history.keys()
+            dataset_dir, jars_dir
         )
         self._sorted_entity_streams_manager = WikidatedSortedEntityStreamsManager(
-            dataset_dir, self._wikidata_dump.pages_meta_history.keys()
+            dataset_dir
         )
         self._global_stream_manager = WikidatedGlobalStreamManager(dataset_dir)
 
