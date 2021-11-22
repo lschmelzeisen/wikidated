@@ -42,20 +42,28 @@ class WikidatedGlobalStreamFile:
         self.month: Final = month
         self.revision_ids: Final = revision_ids
 
+    @property
+    def months(self) -> range:
+        return range(self.month.toordinal(), next_month(self.month).toordinal())
+
+    @classmethod
+    def archive_path_pattern(cls, dataset_dir: Path) -> str:
+        return f"{dataset_dir.name}-global-stream-d*-r*-r*.7z"
+
     @classmethod
     def _make_archive_path(
         cls, dataset_dir: Path, month: date, revision_ids: range
     ) -> Path:
         return dataset_dir / (
-            f"{dataset_dir.name}-global-stream-{month:%4Y%2m}"
-            f"-r{revision_ids.start}-r{revision_ids.stop - 1}.7z"
+            f"{dataset_dir.name}-global-stream"
+            f"-d{month:%4Y%2m}-r{revision_ids.start}-r{revision_ids.stop - 1}.7z"
         )
 
     @classmethod
     def _parse_archive_path(cls, path: Path) -> Tuple[Path, date, range]:
         match = re.match(
             r"^(?P<dataset_dir_name>.+)-global-stream"
-            r"-(?P<year>\d{4})(?P<month>\d{2})"
+            r"-d(?P<year>\d{4})(?P<month>\d{2})"
             r"-r(?P<min_revision_id>\d+)-r(?P<max_revision_id>\d+).7z$",
             path.name,
         )
@@ -95,8 +103,8 @@ class WikidatedGlobalStreamFile:
     @classmethod
     def load(cls, path: Path) -> WikidatedGlobalStreamFile:
         assert path.exists()
-        _, month, revision_id_range = cls._parse_archive_path(path)
-        return WikidatedGlobalStreamFile(path, month, revision_id_range)
+        _, month, revision_ids = cls._parse_archive_path(path)
+        return WikidatedGlobalStreamFile(path, month, revision_ids)
 
     @classmethod
     def build(
@@ -163,6 +171,14 @@ class WikidatedGlobalStreamManager:
         self._files_by_months = RangeMap[WikidatedGlobalStreamFile]()
         self._files_by_revision_ids = RangeMap[WikidatedGlobalStreamFile]()
 
+    def load(self) -> None:
+        for path in self._dataset_dir.glob(
+            WikidatedGlobalStreamFile.archive_path_pattern(self._dataset_dir)
+        ):
+            file = WikidatedGlobalStreamFile.load(path)
+            self._files_by_months[file.months] = file
+            self._files_by_revision_ids[file.revision_ids] = file
+
     def build(
         self,
         sorted_entity_streams_manager: WikidatedSortedEntityStreamsManager,
@@ -185,9 +201,7 @@ class WikidatedGlobalStreamManager:
             file, sorted_revisions = WikidatedGlobalStreamFile.build(
                 self._dataset_dir, month, sorted_revisions
             )
-            self._files_by_months[
-                range(month.toordinal(), next_month(month).toordinal())
-            ] = file
+            self._files_by_months[file.months] = file
             self._files_by_revision_ids[file.revision_ids] = file
         try:
             revision = next(sorted_revisions)
