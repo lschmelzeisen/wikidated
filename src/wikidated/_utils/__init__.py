@@ -26,6 +26,7 @@ from wikidated._utils.misc import (
     hashcheck,
     hashsum,
     month_between_dates,
+    next_month,
 )
 from wikidated._utils.parallelize import (
     ParallelizeExitWorkerFunc,
@@ -47,6 +48,7 @@ __all__ = [
     "hashcheck",
     "hashsum",
     "month_between_dates",
+    "next_month",
     "ParallelizeExitWorkerFunc",
     "ParallelizeFunc",
     "ParallelizeInitWorkerFunc",

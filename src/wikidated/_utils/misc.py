@@ -28,16 +28,17 @@ from typing_extensions import Protocol
 _LOGGER = getLogger(__name__)
 
 
-def month_between_dates(start: date, end: date) -> Sequence[date]:
-    def next_month(d: date) -> date:
-        if d.month == 12:
-            return date(year=d.year + 1, month=1, day=1)
-        else:
-            return date(year=d.year, month=d.month + 1, day=1)
+def next_month(day: date) -> date:
+    if day.month == 12:
+        return date(year=day.year + 1, month=1, day=1)
+    else:
+        return date(year=day.year, month=day.month + 1, day=1)
 
+
+def month_between_dates(start: date, stop: date) -> Sequence[date]:
     results = []
     cur_date = start if start.day == 1 else next_month(start)
-    while cur_date < end:
+    while cur_date <= stop:
         results.append(cur_date)
         cur_date = next_month(cur_date)
     return results
