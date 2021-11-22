@@ -24,6 +24,7 @@ from wikidated._wikidated_sorted_entity_streams import (
 )
 from wikidated.wikidata import WikidataDump
 from wikidated.wikidated_entity_streams import WikidatedEntityStreamsManager
+from wikidated.wikidated_global_stream import WikidatedGlobalStreamManager
 from wikidated.wikidated_revision import WikidatedRevision
 
 
@@ -41,6 +42,7 @@ class WikidatedDataset:
         self._sorted_entity_streams_manager = WikidatedSortedEntityStreamsManager(
             dataset_dir, self._wikidata_dump.pages_meta_history.keys()
         )
+        self._global_stream_manager = WikidatedGlobalStreamManager(dataset_dir)
 
     def download(self) -> None:
         raise NotImplementedError()  # TODO
@@ -52,6 +54,9 @@ class WikidatedDataset:
             max_workers=max_workers,
         )
         self._sorted_entity_streams_manager.build(self._entity_streams_manager)
+        self._global_stream_manager.build(
+            self._sorted_entity_streams_manager, self._wikidata_dump.version
+        )
 
     # TODO: rethink what kind of accessor methods might be used here in practice.
 
