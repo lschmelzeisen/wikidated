@@ -20,14 +20,14 @@ from typing import Optional
 from pydantic import BaseModel as PydanticModel
 
 
-class WikidataEntityMeta(PydanticModel):
+class WikidataEntityMetadata(PydanticModel):
     entity_id: str
     page_id: int
     namespace: int
     redirect: Optional[str]
 
 
-class WikidataRevisionMeta(PydanticModel):
+class WikidataRevisionMetadata(PydanticModel):
     revision_id: int
     parent_revision_id: Optional[int]
     timestamp: datetime
@@ -41,57 +41,41 @@ class WikidataRevisionMeta(PydanticModel):
 
 
 class WikidataRevisionBase(PydanticModel):
-    entity: WikidataEntityMeta
-    revision: WikidataRevisionMeta
+    # EntityMetadata
+    entity_id: str
+    page_id: int
+    namespace: int
+    redirect: Optional[str]
+    # RevisionMetadata
+    revision_id: int
+    parent_revision_id: Optional[int]
+    timestamp: datetime
+    contributor: Optional[str]
+    contributor_id: Optional[int]
+    is_minor: bool
+    comment: Optional[str]
+    wikibase_model: str
+    wikibase_format: str
+    sha1: Optional[str]
 
-    @property
-    def entity_id(self) -> str:
-        return self.entity.entity_id
+    def entity_metadata(self) -> WikidataEntityMetadata:
+        return WikidataEntityMetadata(
+            entity_id=self.entity_id,
+            page_id=self.page_id,
+            namespace=self.namespace,
+            redirect=self.redirect,
+        )
 
-    @property
-    def page_id(self) -> int:
-        return self.entity.page_id
-
-    @property
-    def namespace(self) -> int:
-        return self.entity.namespace
-
-    @property
-    def revision_id(self) -> int:
-        return self.revision.revision_id
-
-    @property
-    def parent_revision_id(self) -> Optional[int]:
-        return self.revision.parent_revision_id
-
-    @property
-    def timestamp(self) -> datetime:
-        return self.revision.timestamp
-
-    @property
-    def contributor(self) -> Optional[str]:
-        return self.revision.contributor
-
-    @property
-    def contributor_id(self) -> Optional[int]:
-        return self.revision.contributor_id
-
-    @property
-    def is_minor(self) -> bool:
-        return self.revision.is_minor
-
-    @property
-    def comment(self) -> Optional[str]:
-        return self.revision.comment
-
-    @property
-    def wikibase_model(self) -> str:
-        return self.revision.wikibase_model
-
-    @property
-    def wikibase_format(self) -> str:
-        return self.revision.wikibase_format
-
-    @property
-    def sha1(self) -> Optional[str]:
-        return self.revision.sha1
+    def revision_metadata(self) -> WikidataRevisionMetadata:
+        return WikidataRevisionMetadata(
+            revision_id=self.revision_id,
+            parent_revision_id=self.parent_revision_id,
+            timestamp=self.timestamp,
+            contributor=self.contributor,
+            contributor_id=self.contributor_id,
+            is_minor=self.is_minor,
+            comment=self.comment,
+            wikibase_model=self.wikibase_model,
+            wikibase_format=self.wikibase_format,
+            sha1=self.sha1,
+        )

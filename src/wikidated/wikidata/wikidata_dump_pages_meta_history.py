@@ -27,9 +27,8 @@ from tqdm import tqdm  # type: ignore
 from wikidated._utils import SevenZipArchive
 from wikidated.wikidata.wikidata_dump_file import WikidataDumpFile
 from wikidated.wikidata.wikidata_revision_base import (
-    WikidataEntityMeta,
     WikidataRevisionBase,
-    WikidataRevisionMeta,
+    WikidataRevisionMetadata,
 )
 
 
@@ -163,20 +162,32 @@ class WikidataDumpPagesMetaHistory(WikidataDumpFile):
         else:
             lines = chain((line,), lines)
 
-        entity = WikidataEntityMeta(
-            entity_id=entity_id, page_id=page_id, namespace=namespace, redirect=redirect
-        )
-
         for line in lines:
             if cls._is_closing_tag(line, "page"):
                 break
-            revision, text = cls._process_revision(chain((line,), lines))
-            yield WikidataRawRevision(entity=entity, revision=revision, text=text)
+            revision_metadata, text = cls._process_revision(chain((line,), lines))
+            yield WikidataRawRevision(
+                entity_id=entity_id,
+                page_id=page_id,
+                namespace=namespace,
+                redirect=redirect,
+                revision_id=revision_metadata.revision_id,
+                parent_revision_id=revision_metadata.parent_revision_id,
+                timestamp=revision_metadata.timestamp,
+                contributor=revision_metadata.contributor,
+                contributor_id=revision_metadata.contributor_id,
+                is_minor=revision_metadata.is_minor,
+                comment=revision_metadata.comment,
+                wikibase_model=revision_metadata.wikibase_model,
+                wikibase_format=revision_metadata.wikibase_format,
+                sha1=revision_metadata.sha1,
+                text=text,
+            )
 
     @classmethod
     def _process_revision(
         cls, lines: Iterator[str]
-    ) -> Tuple[WikidataRevisionMeta, Optional[str]]:
+    ) -> Tuple[WikidataRevisionMetadata, Optional[str]]:
         cls._assert_opening_tag(next(lines), "revision")
         revision_id = int(cls._extract_value(next(lines), "id"))
 
@@ -237,7 +248,7 @@ class WikidataDumpPagesMetaHistory(WikidataDumpFile):
         cls._assert_closing_tag(next(lines), "revision")
 
         return (
-            WikidataRevisionMeta(
+            WikidataRevisionMetadata(
                 revision_id=revision_id,
                 parent_revision_id=parent_revision_id,
                 timestamp=timestamp,

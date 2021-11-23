@@ -116,9 +116,9 @@ class WikidataRdfConversionError(Exception):
 
     def __str__(self) -> str:
         return (
-            f"{self.reason} ({self.revision.entity.entity_id}, "
-            f"page ID: {self.revision.entity.page_id}, "
-            f"revision ID: {self.revision.revision.revision_id})"
+            f"{self.reason} ({self.revision.entity_id}, "
+            f"page ID: {self.revision.page_id}, "
+            f"revision ID: {self.revision.revision_id})"
         )
 
 
@@ -252,8 +252,20 @@ class WikidataRdfConverter:
         wdtk_rdf_writer.finish()
 
         return WikidataRdfRevision(
-            entity=revision.entity,
-            revision=revision.revision,
+            entity_id=revision.entity_id,
+            page_id=revision.page_id,
+            namespace=revision.namespace,
+            redirect=revision.redirect,
+            revision_id=revision.revision_id,
+            parent_revision_id=revision.parent_revision_id,
+            timestamp=revision.timestamp,
+            contributor=revision.contributor,
+            contributor_id=revision.contributor_id,
+            is_minor=revision.is_minor,
+            comment=revision.comment,
+            wikibase_model=revision.wikibase_model,
+            wikibase_format=revision.wikibase_format,
+            sha1=revision.sha1,
             triples=self._parse_ntriples(str(wdtk_output_stream)),
         )
 
@@ -267,17 +279,17 @@ class WikidataRdfConverter:
                 return self._wdtk_json_deserializer.deserializeEntityRedirectDocument(
                     revision.text
                 )
-            elif revision.revision.wikibase_model == "wikibase-item":
+            elif revision.wikibase_model == "wikibase-item":
                 return self._wdtk_json_deserializer.deserializeItemDocument(
                     revision.text
                 )
-            elif revision.revision.wikibase_model == "wikibase-property":
+            elif revision.wikibase_model == "wikibase-property":
                 return self._wdtk_json_deserializer.deserializePropertyDocument(
                     revision.text
                 )
             else:
                 raise WikidataRdfConversionError(
-                    f"JSON deserialization of {revision.revision.wikibase_model} not "
+                    f"JSON deserialization of {revision.wikibase_model} not "
                     "implemented by Wikidata Toolkit.",
                     revision,
                 )

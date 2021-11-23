@@ -147,7 +147,7 @@ class WikidatedEntityStreamsFile:
 
         for entity_meta, revisions in groupby(
             pages_meta_history.iter_revisions(display_progress_bar=False),
-            lambda revision: revision.entity,
+            lambda revision: revision.entity_metadata(),
         ):
             wikidated_revisions = cls._iter_wikidated_revisions(
                 revisions, rdf_converter
@@ -196,8 +196,20 @@ class WikidatedEntityStreamsFile:
             state = triples_set
 
             yield WikidatedRevision(
-                entity=revision.entity,
-                revision=revision.revision,
+                entity_id=revision.entity_id,
+                page_id=revision.page_id,
+                namespace=revision.namespace,
+                redirect=revision.redirect,
+                revision_id=revision.revision_id,
+                parent_revision_id=revision.parent_revision_id,
+                timestamp=revision.timestamp,
+                contributor=revision.contributor,
+                contributor_id=revision.contributor_id,
+                is_minor=revision.is_minor,
+                comment=revision.comment,
+                wikibase_model=revision.wikibase_model,
+                wikibase_format=revision.wikibase_format,
+                sha1=revision.sha1,
                 triple_deletions=triple_deletions,
                 triple_additions=triple_additions,
             )
@@ -255,8 +267,8 @@ class WikidatedEntityStreamsManager:
         update_progress(progress_name, progress_current, progress_total)
         for revision in revisions_builder:
             # TODO: count number of processed revisions and exceptions?
-            if progress_current != revision.entity.page_id - file.page_ids.start:
-                progress_current = revision.entity.page_id - file.page_ids.start
+            if progress_current != revision.page_id - file.page_ids.start:
+                progress_current = revision.page_id - file.page_ids.start
                 update_progress(progress_name, progress_current, progress_total)
         update_progress(progress_name, progress_total, progress_total)
         return file

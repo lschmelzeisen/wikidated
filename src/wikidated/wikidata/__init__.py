@@ -30,9 +30,9 @@ from wikidated.wikidata.wikidata_rdf_converter import (
     WikidataRdfTriple,
 )
 from wikidated.wikidata.wikidata_revision_base import (
-    WikidataEntityMeta,
+    WikidataEntityMetadata,
     WikidataRevisionBase,
-    WikidataRevisionMeta,
+    WikidataRevisionMetadata,
 )
 
 __all__ = [
@@ -47,7 +47,7 @@ __all__ = [
     "WikidataRdfConverter",
     "WikidataRdfRevision",
     "WikidataRdfTriple",
-    "WikidataEntityMeta",
+    "WikidataEntityMetadata",
     "WikidataRevisionBase",
-    "WikidataRevisionMeta",
+    "WikidataRevisionMetadata",
 ]
