@@ -29,10 +29,10 @@ from tqdm import tqdm  # type: ignore
 from typing_extensions import Final
 
 from wikidated._utils import RangeMap, SevenZipArchive, month_between_dates, next_month
-from wikidated._wikidated_sorted_entity_streams import (
+from wikidated.wikidated_revision import WikidatedRevision
+from wikidated.wikidated_sorted_entity_streams import (
     WikidatedSortedEntityStreamsManager,
 )
-from wikidated.wikidated_revision import WikidatedRevision
 
 _LOGGER = getLogger(__name__)
 _WIKIDATA_INCEPTION_MONTH = date(year=2012, month=10, day=1)
