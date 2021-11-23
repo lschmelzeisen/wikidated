@@ -116,22 +116,8 @@ class WikidatedGlobalStreamFile:
         if month.day != 1:
             raise ValueError("month must be a date with day=1.")
 
-        next_month_ = next_month(month)
-        try:
-            archive_path = next(
-                dataset_dir.glob(cls.archive_path_glob(dataset_dir, month))
-            )
-            _LOGGER.debug(
-                f"File '{archive_path}' already exists, skipping building but "
-                "draining revisions iterator."
-            )
-            for _ in takewhile(
-                lambda revision: revision.timestamp.date() < next_month_, revisions
-            ):
-                pass
+        if cls._skip_existing_file(dataset_dir, month, revisions):
             return None, revisions
-        except StopIteration:
-            pass
 
         tmp_dir = dataset_dir / f"tmp.{dataset_dir.name}-global-stream-d{month:%4Y%2m}"
         if tmp_dir.exists():
@@ -147,7 +133,7 @@ class WikidatedGlobalStreamFile:
                 raise Exception(
                     "Given revision stream has revisions before given month."
                 )
-            elif day >= next_month_:
+            elif day >= next_month(month):
                 revisions = chain(revisions_of_day, revisions)
                 break
 
@@ -178,7 +164,7 @@ class WikidatedGlobalStreamFile:
             )
 
         if revision_ids is None:
-            # This rare case occurs, when there are no revisions for the given month.
+            # This rare case occurs when there are no revisions for the given month.
             rmtree(tmp_dir)
             return None, revisions
 
@@ -188,6 +174,27 @@ class WikidatedGlobalStreamFile:
         rmtree(tmp_dir)
 
         return WikidatedGlobalStreamFile(archive_path, month, revision_ids), revisions
+
+    @classmethod
+    def _skip_existing_file(
+        cls, dataset_dir: Path, month: date, revisions: Iterator[WikidatedRevision]
+    ) -> bool:
+        try:
+            archive_path = next(
+                dataset_dir.glob(cls.archive_path_glob(dataset_dir, month))
+            )
+            _LOGGER.debug(
+                f"File '{archive_path}' already exists, skipping building but "
+                "draining revisions iterator."
+            )
+            for _ in takewhile(
+                lambda revision: revision.timestamp.date() < next_month(month),
+                revisions,
+            ):
+                pass
+            return True
+        except StopIteration:
+            return False
 
 
 class WikidatedGlobalStreamManager:
