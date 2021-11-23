@@ -18,6 +18,8 @@ from hashlib import sha1
 from logging import getLogger
 from pathlib import Path
 
+from typing_extensions import Final
+
 from wikidated._utils import download_file_with_progressbar, hashcheck
 
 _LOGGER = getLogger(__name__)
@@ -25,29 +27,21 @@ _LOGGER = getLogger(__name__)
 
 class WikidataDumpFile:
     def __init__(self, *, path: Path, url: str, sha1: str, size: int) -> None:
-        self._path = path
-        self._url = url
-        self._sha1 = sha1
-        self._size = size
+        self.path: Final = path
+        self.url: Final = url
+        self.sha1: Final = sha1
+        self.size: Final = size
 
     def download(self) -> None:
-        if self._path.exists():
-            hashcheck(self._path, sha1(), self._sha1)
+        if self.path.exists():
+            hashcheck(self.path, sha1(), self.sha1)
             _LOGGER.debug(
-                f"File '{self._path.name}' already exists, skipping download..."
+                f"File '{self.path.name}' already exists, skipping download..."
             )
             return
 
-        self._path.parent.mkdir(exist_ok=True, parents=True)
-        path_tmp = self._path.parent / ("tmp." + self._path.name)
-        download_file_with_progressbar(self._url, path_tmp, description=self._path.name)
-        hashcheck(path_tmp, sha1(), self._sha1)
-        path_tmp.rename(self._path)
-
-    @property
-    def path(self) -> Path:
-        return self._path
-
-    @property
-    def size(self) -> int:
-        return self._size
+        self.path.parent.mkdir(exist_ok=True, parents=True)
+        path_tmp = self.path.parent / ("tmp." + self.path.name)
+        download_file_with_progressbar(self.url, path_tmp, description=self.path.name)
+        hashcheck(path_tmp, sha1(), self.sha1)
+        path_tmp.rename(self.path)

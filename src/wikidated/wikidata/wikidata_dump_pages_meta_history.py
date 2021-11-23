@@ -58,19 +58,19 @@ class WikidataDumpPagesMetaHistory(WikidataDumpFile):
         match = re.match(
             r"^wikidatawiki-(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})-pages-meta-"
             r"history\d+.xml-p(?P<min_page_id>\d+)p(?P<max_page_id>\d+).7z$",
-            self._path.name,
+            self.path.name,
         )
         if not match:
             raise Exception(
-                f"File '{self._path.name}' is not a Wikidata dump pages-meta-history "
+                f"File '{self.path.name}' is not a Wikidata dump pages-meta-history "
                 f"file (based on file name)."
             )
         self.date = date(int(match["year"]), int(match["month"]), int(match["day"]))
         self.page_ids = range(int(match["min_page_id"]), int(match["max_page_id"]) + 1)
 
     def site_info(self) -> WikidataSiteInfo:
-        assert self._path.exists()
-        with SevenZipArchive(self._path).read() as fd:
+        assert self.path.exists()
+        with SevenZipArchive(self.path).read() as fd:
             lines = iter(fd)
             self._assert_opening_tag(next(lines), "mediawiki")
             return self._process_site_info(lines)
@@ -113,15 +113,15 @@ class WikidataDumpPagesMetaHistory(WikidataDumpFile):
     def iter_revisions(
         self, *, display_progress_bar: bool = True
     ) -> Iterator[WikidataRawRevision]:
-        assert self._path.exists()
+        assert self.path.exists()
 
         progress_bar: Optional[tqdm] = (
-            tqdm(desc=self._path.name, total=len(self.page_ids), dynamic_ncols=True)
+            tqdm(desc=self.path.name, total=len(self.page_ids), dynamic_ncols=True)
             if display_progress_bar
             else None
         )
 
-        with SevenZipArchive(self._path).read() as fd:
+        with SevenZipArchive(self.path).read() as fd:
             lines = iter(fd)
             self._assert_opening_tag(next(lines), "mediawiki")
             self._assert_opening_tag(next(lines), "siteinfo")
