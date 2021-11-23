@@ -19,7 +19,8 @@ from __future__ import annotations
 import heapq
 import re
 from datetime import date
-from itertools import chain, groupby
+from itertools import chain, groupby, takewhile
+from logging import getLogger
 from pathlib import Path
 from shutil import rmtree
 from typing import Iterator, Optional, Tuple
@@ -33,6 +34,7 @@ from wikidated._wikidated_sorted_entity_streams import (
 )
 from wikidated.wikidated_revision import WikidatedRevision
 
+_LOGGER = getLogger(__name__)
 _WIKIDATA_INCEPTION_MONTH = date(year=2012, month=10, day=1)
 
 
@@ -47,8 +49,9 @@ class WikidatedGlobalStreamFile:
         return range(self.month.toordinal(), next_month(self.month).toordinal())
 
     @classmethod
-    def archive_path_glob(cls, dataset_dir: Path) -> str:
-        return f"{dataset_dir.name}-global-stream-d*-r*-r*.7z"
+    def archive_path_glob(cls, dataset_dir: Path, month: Optional[date] = None) -> str:
+        month_str = f"{month:%4Y%2m}" if month else "*"
+        return f"{dataset_dir.name}-global-stream-d{month_str}-r*-r*.7z"
 
     @classmethod
     def _make_archive_path(
@@ -113,12 +116,28 @@ class WikidatedGlobalStreamFile:
         if month.day != 1:
             raise ValueError("month must be a date with day=1.")
 
+        next_month_ = next_month(month)
+        try:
+            archive_path = next(
+                dataset_dir.glob(cls.archive_path_glob(dataset_dir, month))
+            )
+            _LOGGER.debug(
+                f"File '{archive_path}' already exists, skipping building but "
+                "draining revisions iterator."
+            )
+            for _ in takewhile(
+                lambda revision: revision.timestamp.date() < next_month_, revisions
+            ):
+                pass
+            return None, revisions
+        except StopIteration:
+            pass
+
         tmp_dir = dataset_dir / f"tmp.{dataset_dir.name}-global-stream-d{month:%4Y%2m}"
         if tmp_dir.exists():
             rmtree(tmp_dir)
         tmp_dir.mkdir(exist_ok=True, parents=True)
 
-        next_month_ = next_month(month)
         revision_ids: Optional[range] = None
 
         for day, revisions_of_day in groupby(
