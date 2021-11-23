@@ -16,6 +16,8 @@
 
 from pathlib import Path
 
+from typing_extensions import Final
+
 from wikidated._utils import JavaArtifact, JavaDependencyDownloader
 from wikidated.wikidata import WikidataDump
 from wikidated.wikidated_dataset import WikidatedDataset
@@ -23,19 +25,9 @@ from wikidated.wikidated_dataset import WikidatedDataset
 
 class WikidatedManager:
     def __init__(self, data_dir: Path) -> None:
-        self._data_dir = data_dir
-
-    @property
-    def data_dir(self) -> Path:
-        return self._data_dir
-
-    @property
-    def jars_dir(self) -> Path:
-        return self._data_dir / "jars"
-
-    @property
-    def maven_dir(self) -> Path:
-        return self._data_dir / "maven"
+        self.data_dir: Final = data_dir
+        self.jars_dir: Final = data_dir / "jars"
+        self.maven_dir: Final = data_dir / "maven"
 
     def custom(self, wikidata_dump: WikidataDump) -> WikidatedDataset:
         return WikidatedDataset(
