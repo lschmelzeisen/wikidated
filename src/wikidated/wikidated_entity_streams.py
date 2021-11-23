@@ -227,6 +227,13 @@ class WikidatedEntityStreams:
         self._jvm_manager: Optional[JvmManager] = None
         self._sites_table: Optional[WikidataDumpSitesTable] = None
 
+    def load(self) -> None:
+        for path in self._dataset_dir.glob(
+            WikidatedEntityStreamsFile.archive_path_glob(self._dataset_dir)
+        ):
+            file = WikidatedEntityStreamsFile.load(path)
+            self._files_by_page_ids[file.page_ids] = file
+
     def build(
         self,
         sites_table: WikidataDumpSitesTable,

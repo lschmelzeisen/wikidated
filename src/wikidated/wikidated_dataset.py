@@ -43,6 +43,11 @@ class WikidatedDataset:
     def download(self) -> None:
         raise NotImplementedError()  # TODO
 
+    def load(self) -> None:
+        self.entity_streams.load()
+        self.sorted_entity_streams.load()
+        self.global_stream.load()
+
     def build(self, *, max_workers: Optional[int] = 4) -> None:
         self.entity_streams.build(
             self._wikidata_dump.sites_table,
