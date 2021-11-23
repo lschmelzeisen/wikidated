@@ -35,14 +35,14 @@ from wikidated._utils.misc import (
 _LOGGER = getLogger(__name__)
 
 # From: https://maven.apache.org/download.cgi
-_MAVEN_VERSION = "3.8.2"
+_MAVEN_VERSION = "3.8.4"
 _MAVEN_BIN_ARCHIVE_URL = (
     f"https://dlcdn.apache.org/maven/maven-3/{_MAVEN_VERSION}/binaries/"
     f"apache-maven-{_MAVEN_VERSION}-bin.tar.gz"
 )
 _MAVEN_BIN_ARCHIVE_SHA512 = (
-    "b0bf39460348b2d8eae1c861ced6c3e8a077b6e761fb3d4669be5de09490521a"
-    "74db294cf031b0775b2dfcd57bd82246e42ce10904063ef8e3806222e686f222"
+    "a9b2d825eacf2e771ed5d6b0e01398589ac1bfa4171f36154d1b578787960550"
+    "7802f699da6f7cfc80732a5282fd31b28e4cd6052338cbef0fa1358b48a5e3c8"
 )
 
 
@@ -50,6 +50,10 @@ class JavaArtifact(NamedTuple):
     group_id: str
     artifact_id: str
     version: str
+
+    @property
+    def path(self) -> Path:
+        return Path(f"{self.artifact_id}-{self.version}.jar")
 
 
 class JavaDependencyDownloader:
@@ -74,9 +78,7 @@ class JavaDependencyDownloader:
         # the transitive dependencies yet we use the presence of the JARs we are given
         # as a heuristic for whether everything is there.
         for artifact in artifacts:
-            if not (
-                self._jars_dir / f"{artifact.artifact_id}-{artifact.version}.jar"
-            ).exists():
+            if not (self._jars_dir / artifact.path).exists():
                 return False
         return True
 
