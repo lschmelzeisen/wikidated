@@ -26,8 +26,8 @@ from typing_extensions import Final
 
 from wikidated._utils import RangeMap, SevenZipArchive
 from wikidated.wikidated_entity_streams import (
+    WikidatedEntityStreams,
     WikidatedEntityStreamsFile,
-    WikidatedEntityStreamsManager,
 )
 from wikidated.wikidated_revision import WikidatedRevision
 
@@ -98,7 +98,7 @@ class WikidatedSortedEntityStreamsFile:
         )
 
 
-class WikidatedSortedEntityStreamsManager:
+class WikidatedSortedEntityStreams:
     def __init__(self, dataset_dir: Path):
         self._dataset_dir = dataset_dir
         self._files_by_page_ids = RangeMap[WikidatedSortedEntityStreamsFile]()
@@ -110,7 +110,7 @@ class WikidatedSortedEntityStreamsManager:
             file = WikidatedSortedEntityStreamsFile.load(path)
             self._files_by_page_ids[file.page_ids] = file
 
-    def build(self, entity_streams_manager: WikidatedEntityStreamsManager) -> None:
+    def build(self, entity_streams_manager: WikidatedEntityStreams) -> None:
         for entity_streams_file in tqdm(
             entity_streams_manager._files_by_page_ids.values(),
             desc="Sorted Entity Streams",

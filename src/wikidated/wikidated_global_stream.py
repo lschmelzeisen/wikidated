@@ -30,9 +30,7 @@ from typing_extensions import Final
 
 from wikidated._utils import RangeMap, SevenZipArchive, month_between_dates, next_month
 from wikidated.wikidated_revision import WikidatedRevision
-from wikidated.wikidated_sorted_entity_streams import (
-    WikidatedSortedEntityStreamsManager,
-)
+from wikidated.wikidated_sorted_entity_streams import WikidatedSortedEntityStreams
 
 _LOGGER = getLogger(__name__)
 _WIKIDATA_INCEPTION_MONTH = date(year=2012, month=10, day=1)
@@ -197,7 +195,7 @@ class WikidatedGlobalStreamFile:
             return False
 
 
-class WikidatedGlobalStreamManager:
+class WikidatedGlobalStream:
     def __init__(self, dataset_dir: Path) -> None:
         self._dataset_dir = dataset_dir
         self._files_by_months = RangeMap[WikidatedGlobalStreamFile]()
@@ -213,7 +211,7 @@ class WikidatedGlobalStreamManager:
 
     def build(
         self,
-        sorted_entity_streams_manager: WikidatedSortedEntityStreamsManager,
+        sorted_entity_streams_manager: WikidatedSortedEntityStreams,
         wikidata_dump_version: date,
     ) -> None:
         sorted_entity_streams_iters = [

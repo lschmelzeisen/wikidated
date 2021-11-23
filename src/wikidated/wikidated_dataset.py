@@ -20,12 +20,10 @@ from pathlib import Path
 from typing import Iterator, Optional
 
 from wikidated.wikidata import WikidataDump
-from wikidated.wikidated_entity_streams import WikidatedEntityStreamsManager
-from wikidated.wikidated_global_stream import WikidatedGlobalStreamManager
+from wikidated.wikidated_entity_streams import WikidatedEntityStreams
+from wikidated.wikidated_global_stream import WikidatedGlobalStream
 from wikidated.wikidated_revision import WikidatedRevision
-from wikidated.wikidated_sorted_entity_streams import (
-    WikidatedSortedEntityStreamsManager,
-)
+from wikidated.wikidated_sorted_entity_streams import WikidatedSortedEntityStreams
 
 
 class WikidatedDataset:
@@ -36,26 +34,22 @@ class WikidatedDataset:
         wikidata_dump: WikidataDump,
     ) -> None:
         self._wikidata_dump = wikidata_dump
-        self._entity_streams_manager = WikidatedEntityStreamsManager(
-            dataset_dir, jars_dir
-        )
-        self._sorted_entity_streams_manager = WikidatedSortedEntityStreamsManager(
-            dataset_dir
-        )
-        self._global_stream_manager = WikidatedGlobalStreamManager(dataset_dir)
+        self._entity_streams = WikidatedEntityStreams(dataset_dir, jars_dir)
+        self._sorted_entity_streams = WikidatedSortedEntityStreams(dataset_dir)
+        self._global_stream = WikidatedGlobalStream(dataset_dir)
 
     def download(self) -> None:
         raise NotImplementedError()  # TODO
 
     def build(self, *, max_workers: Optional[int] = 4) -> None:
-        self._entity_streams_manager.build(
+        self._entity_streams.build(
             self._wikidata_dump.sites_table,
             self._wikidata_dump.pages_meta_history,
             max_workers=max_workers,
         )
-        self._sorted_entity_streams_manager.build(self._entity_streams_manager)
-        self._global_stream_manager.build(
-            self._sorted_entity_streams_manager, self._wikidata_dump.version
+        self._sorted_entity_streams.build(self._entity_streams)
+        self._global_stream.build(
+            self._sorted_entity_streams, self._wikidata_dump.version
         )
 
     # TODO: rethink what kind of accessor methods might be used here in practice.

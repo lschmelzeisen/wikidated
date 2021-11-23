@@ -215,7 +215,7 @@ class WikidatedEntityStreamsFile:
             )
 
 
-class WikidatedEntityStreamsManager:
+class WikidatedEntityStreams:
     def __init__(
         self,
         dataset_dir: Path,
