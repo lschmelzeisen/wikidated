@@ -109,11 +109,11 @@ class WikidatedGlobalStreamFile:
     @classmethod
     def build(
         cls, dataset_dir: Path, month: date, revisions: Iterator[WikidatedRevision]
-    ) -> Tuple[WikidatedGlobalStreamFile, Iterator[WikidatedRevision]]:
+    ) -> Tuple[Optional[WikidatedGlobalStreamFile], Iterator[WikidatedRevision]]:
         if month.day != 1:
             raise ValueError("month must be a date with day=1.")
 
-        tmp_dir = dataset_dir / f"tmp.{dataset_dir.name}-global-stream-{month:%4Y%2m}"
+        tmp_dir = dataset_dir / f"tmp.{dataset_dir.name}-global-stream-d{month:%4Y%2m}"
         if tmp_dir.exists():
             rmtree(tmp_dir)
         tmp_dir.mkdir(exist_ok=True, parents=True)
@@ -144,6 +144,9 @@ class WikidatedGlobalStreamFile:
                     )
                     fd.write(revision.json() + "\n")
 
+            # The assertion could only be false if we did not enter the inner for loop
+            # above. However, since groupby returned something for the outer loop,
+            # revisions_of_day is not empty, and we must have entered the inner loop.
             assert revision_ids_of_day is not None
             revision_ids = (
                 revision_ids_of_day
@@ -155,7 +158,10 @@ class WikidatedGlobalStreamFile:
                 tmp_dir / cls._make_archive_component_path(day, revision_ids_of_day)
             )
 
-        assert revision_ids is not None
+        if revision_ids is None:
+            # This rare case occurs, when there are no revisions for the given month.
+            rmtree(tmp_dir)
+            return None, revisions
 
         archive_path = cls._make_archive_path(dataset_dir, month, revision_ids)
 
@@ -203,8 +209,9 @@ class WikidatedGlobalStreamManager:
             file, sorted_revisions = WikidatedGlobalStreamFile.build(
                 self._dataset_dir, month, sorted_revisions
             )
-            self._files_by_months[file.months] = file
-            self._files_by_revision_ids[file.revision_ids] = file
+            if file:
+                self._files_by_months[file.months] = file
+                self._files_by_revision_ids[file.revision_ids] = file
         try:
             revision = next(sorted_revisions)
             raise Exception(
