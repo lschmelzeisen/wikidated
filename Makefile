@@ -34,23 +34,23 @@ check: check-flake8 check-mypy check-vulture check-isort check-black ##- Run lin
 .PHONY: check
 
 check-flake8: ##- Run linters.
-	@poetry run flake8 src tests noxfile.py
+	@poetry run flake8 scripts src tests noxfile.py
 .PHONY: check-flake8
 
 check-mypy: ##- Run static type-checking.
-	@poetry run mypy src tests noxfile.py
+	@poetry run mypy scripts src tests noxfile.py
 .PHONY: check-mypy
 
 check-vulture: ##- Check for unused code.
-	@poetry run vulture src tests noxfile.py vulture-whitelist.py
+	@poetry run vulture scripts src tests noxfile.py vulture-whitelist.py
 .PHONY: check-vulture
 
 check-isort: ##- Check if imports are sorted correctly.
-	@poetry run isort --check-only --quiet src tests noxfile.py
+	@poetry run isort --check-only --quiet scripts src tests noxfile.py
 .PHONY: check-isort
 
 check-black: ##- Check if code is formatted correctly.
-	@poetry run black --check src tests noxfile.py
+	@poetry run black --check scripts src tests noxfile.py
 .PHONY: check-black
 
 # ------------------------------------------------------------------------------
@@ -59,29 +59,30 @@ format: format-licenseheaders format-isort format-black ##- Auto format all code
 .PHONY: format
 
 format-licenseheaders: ##- Prepend license headers to all code files.
+	@poetry run licenseheaders --tmpl LICENSE.header --years 2021 --owner "Lukas Schmelzeisen" --dir scripts
 	@poetry run licenseheaders --tmpl LICENSE.header --years 2021 --owner "Lukas Schmelzeisen" --dir src
 	@poetry run licenseheaders --tmpl LICENSE.header --years 2021 --owner "Lukas Schmelzeisen" --dir tests
 	@poetry run licenseheaders --tmpl LICENSE.header --years 2021 --owner "Lukas Schmelzeisen" -f noxfile.py
 .PHONY: format-licenseheaders
 
 format-isort: ##- Sort all imports.
-	@poetry run isort --quiet src tests noxfile.py
+	@poetry run isort --quiet scripts src tests noxfile.py
 .PHONY: format-isort
 
 format-black: ##- Format all code.
-	@poetry run black src tests noxfile.py
+	@poetry run black scripts src tests noxfile.py
 .PHONY: format-black
 
 # ------------------------------------------------------------------------------
 
 clean: ##- Remove all created cache/build files, test/coverage reports, and virtual environments.
 	@rm -rf __pycache__ .coverage* .eggs .mypy_cache .pytest_cache .nox .venv dist src/*.egg-info tests-coverage tests-report.html
-	@find src tests -type d -name __pycache__ -exec rm -r {} +
+	@find scripts src tests -type d -name __pycache__ -exec rm -r {} +
 	@rm -rf wikidata-toolkit/{.gradle,jars}
-.PHONY: clea
+.PHONY: clean
 
 # ------------------------------------------------------------------------------
 
 build-vulture-whitelistpy: ##- Regenerate vulture whitelist (list of currently seemingly unused code that will not be reported).
-	@poetry run vulture src tests *.py --make-whitelist > vulture-whitelist.py || true
+	@poetry run vulture scripts src tests *.py --make-whitelist > vulture-whitelist.py || true
 .PHONY: build-vulture-whitelistpy
