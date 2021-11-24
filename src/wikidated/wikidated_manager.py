@@ -15,8 +15,12 @@
 #
 
 from datetime import date
+from logging import DEBUG, INFO, FileHandler, Formatter, getLogger
+from logging import root as root_logger
 from pathlib import Path
+from typing import Optional, Union
 
+from tqdm.contrib.logging import _TqdmLoggingHandler  # type: ignore
 from typing_extensions import Final
 
 from wikidated._utils import JavaArtifact, JavaDependencyDownloader
@@ -51,6 +55,43 @@ class WikidatedManager:
 
     def entity_id_from_page_id(self, page_id: int) -> str:
         raise NotImplementedError()  # TODO
+
+    def configure_logging(
+        self,
+        *,
+        console: Union[bool, int] = True,
+        console_fmt: str = "{asctime} {levelname:.1} {message}",
+        file: Union[bool, int] = True,
+        file_path: Optional[Path] = None,
+        file_fmt: str = (
+            "{asctime} {levelname} [{name}:{funcName}@{processName}] {message}"
+        ),
+        log_wdtk: bool = False,
+    ) -> None:
+        overall_level = root_logger.level
+
+        if file is not False:
+            level = DEBUG if file is True else file
+            overall_level = min(overall_level, level)
+            if not file_path:
+                file_path = self.data_dir / "wikidated.log"
+            file_handler = FileHandler(file_path, encoding="UTF-8")
+            file_handler.setLevel(level)
+            file_handler.setFormatter(Formatter(file_fmt, style="{"))
+            root_logger.addHandler(file_handler)
+
+        if console is not False:
+            level = INFO if console is True else console
+            overall_level = min(overall_level, level)
+            console_handler = _TqdmLoggingHandler()
+            console_handler.setLevel(level)
+            console_handler.setFormatter(Formatter(console_fmt, style="{"))
+            root_logger.addHandler(console_handler)
+
+        root_logger.setLevel(overall_level)
+
+        if not log_wdtk:
+            getLogger("jpype.org.wikidata.wdtk").propagate = False
 
     def download_java_dependencies(self) -> None:
         java_dependency_downloader = JavaDependencyDownloader(
