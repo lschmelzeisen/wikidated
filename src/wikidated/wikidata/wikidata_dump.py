@@ -43,12 +43,12 @@ _T_WikidataDumpFile = TypeVar("_T_WikidataDumpFile", bound=WikidataDumpFile)
 class WikidataDump:
     def __init__(
         self,
-        data_dir: Path,
+        dump_dir: Path,
         version: date,
         *,
         mirror: str = "https://dumps.wikimedia.org",
     ) -> None:
-        self._dump_dir = data_dir / "dumpfiles"
+        self._dump_dir = dump_dir
         self.version: Final = version
         self.mirror: Final = mirror
 

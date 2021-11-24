@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+from datetime import date
 from pathlib import Path
 
 from typing_extensions import Final
@@ -26,8 +27,14 @@ from wikidated.wikidated_dataset import WikidatedDataset
 class WikidatedManager:
     def __init__(self, data_dir: Path) -> None:
         self.data_dir: Final = data_dir
+        self.dump_dir: Final = data_dir / "dumpfiles"
         self.jars_dir: Final = data_dir / "jars"
         self.maven_dir: Final = data_dir / "maven"
+
+    def wikidata_dump(
+        self, version: date, *, mirror: str = "https://dumps.wikimedia.org"
+    ) -> WikidataDump:
+        return WikidataDump(self.dump_dir, version=version, mirror=mirror)
 
     def custom(self, wikidata_dump: WikidataDump) -> WikidatedDataset:
         return WikidatedDataset(
