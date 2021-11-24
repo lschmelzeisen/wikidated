@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from logging import FileHandler, Formatter, Handler, Logger, LogRecord, getLogger
+from logging import DEBUG, FileHandler, Formatter, Handler, Logger, LogRecord, getLogger
 from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Callable, MutableMapping, Optional, Type, TypeVar
@@ -38,7 +38,7 @@ class JvmManager:
     def __init__(self, *, jars_dir: Path) -> None:
         self._jars_dir = jars_dir
 
-        _LOGGER.debug("Starting JVM...")
+        _LOGGER.debug("Starting JVM.")
         startJVM(classpath=[str(self._jars_dir / "*")])
 
         self._java_logging_bridge = _JavaLoggingBridge()
@@ -46,7 +46,7 @@ class JvmManager:
     def close(self) -> None:
         assert self  # Stop PyCharm from suggesting to make this method static.
 
-        _LOGGER.debug("Shutting down JVM...")
+        _LOGGER.debug("Shutting down JVM.")
         shutdownJVM()
 
     def __enter__(self) -> JvmManager:
@@ -78,8 +78,6 @@ class JvmManager:
 @JImplements("java.util.logging.Filter", deferred=True)
 class _JavaLoggingBridge:
     def __init__(self) -> None:
-        _LOGGER.debug("Starting Java logging bridge...")
-
         self._loggers: MutableMapping[str, Logger] = {}
         self._file_handler: Optional[Handler] = None
         self._formatter = JClass("java.util.logging.SimpleFormatter")()
@@ -100,23 +98,21 @@ class _JavaLoggingBridge:
     @JOverride
     def isLoggable(self, record: JObject) -> bool:  # noqa: N802
         name = f"jpype.{record.getLoggerName()}"
-        # Transform Java log level to Python log level
-        level = max(record.getLevel().intValue() // 10 - 60, 10)
         # Format message with potential parameters. (Don't know how to postpone this
         # until after we are sure the message will be displayed.)
-        message = str(self._formatter.formatMessage(record))
+        message = f"{record.getLevel()}: {(self._formatter.formatMessage(record))}"
 
         logger = self._loggers.get(name)
         if logger is None:
             logger = getLogger(name)
             self._loggers[name] = logger
 
-        logger.log(level, message)
+        logger.debug(message)
         if self._file_handler:
             self._file_handler.handle(
                 LogRecord(
                     name=name,
-                    level=level,
+                    level=DEBUG,
                     pathname="Unknown.java",
                     lineno=-1,
                     msg=message,

@@ -19,7 +19,7 @@ from __future__ import annotations
 import re
 from logging import getLogger
 from pathlib import Path
-from typing import Iterator, Tuple
+from typing import Iterator, Optional, Tuple
 
 from tqdm import tqdm  # type: ignore
 from typing_extensions import Final
@@ -83,8 +83,12 @@ class WikidatedSortedEntityStreamsFile:
     ) -> WikidatedSortedEntityStreamsFile:
         archive_path = cls._make_archive_path(dataset_dir, entity_streams_file.page_ids)
         if archive_path.exists():
-            _LOGGER.debug(f"File '{archive_path}' already exists, skipping building.")
+            _LOGGER.debug(
+                f"Sorted entity streams file '{archive_path.name}' already exists, "
+                f"skipping building."
+            )
         else:
+            _LOGGER.debug(f"Building sorted entity streams file {archive_path.name}.")
             tmp_path = archive_path.parent / ("tmp." + archive_path.name)
             revisions = list(entity_streams_file.iter_revisions())
             revisions.sort(key=lambda revision: revision.revision_id)
@@ -92,6 +96,9 @@ class WikidatedSortedEntityStreamsFile:
                 for revision in revisions:
                     fd.write(revision.json() + "\n")
             tmp_path.rename(archive_path)
+            _LOGGER.debug(
+                f"Done building sorted entity streams file {archive_path.name}."
+            )
 
         return WikidatedSortedEntityStreamsFile(
             archive_path, entity_streams_file.page_ids
@@ -101,16 +108,29 @@ class WikidatedSortedEntityStreamsFile:
 class WikidatedSortedEntityStreams:
     def __init__(self, dataset_dir: Path):
         self._dataset_dir = dataset_dir
-        self._files_by_page_ids = RangeMap[WikidatedSortedEntityStreamsFile]()
+        self._files_by_page_ids: Optional[
+            RangeMap[WikidatedSortedEntityStreamsFile]
+        ] = None
 
     def load(self) -> None:
+        _LOGGER.debug(
+            f"Loading sorted entity streams for dataset {self._dataset_dir.name}."
+        )
+        self._files_by_page_ids = RangeMap[WikidatedSortedEntityStreamsFile]()
         for path in self._dataset_dir.glob(
             WikidatedSortedEntityStreamsFile.archive_path_glob(self._dataset_dir)
         ):
             file = WikidatedSortedEntityStreamsFile.load(path)
             self._files_by_page_ids[file.page_ids] = file
+        _LOGGER.debug(
+            f"Done loading sorted entity streams for dataset {self._dataset_dir.name}."
+        )
 
     def build(self, entity_streams_manager: WikidatedEntityStreams) -> None:
+        _LOGGER.debug(
+            f"Building sorted entity streams for dataset {self._dataset_dir.name}."
+        )
+        self._files_by_page_ids = RangeMap[WikidatedSortedEntityStreamsFile]()
         for entity_streams_file in tqdm(
             entity_streams_manager._files_by_page_ids.values(),
             desc="Sorted Entity Streams",
@@ -119,3 +139,6 @@ class WikidatedSortedEntityStreams:
                 self._dataset_dir, entity_streams_file
             )
             self._files_by_page_ids[file.page_ids] = file
+        _LOGGER.debug(
+            f"Done building sorted entity streams for dataset {self._dataset_dir.name}."
+        )

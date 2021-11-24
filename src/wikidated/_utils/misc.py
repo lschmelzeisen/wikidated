@@ -49,9 +49,9 @@ def download_file_with_progressbar(
     url: str, dest: Union[Path, IO[bytes]], *, description: Optional[str] = None
 ) -> None:
     if isinstance(dest, Path):
-        _LOGGER.debug(f"Downloading url '{url}' to file '{dest}'...")
+        _LOGGER.debug(f"Downloading '{url}' to file '{dest}'.")
     else:
-        _LOGGER.debug(f"Downloading url '{url}'...")
+        _LOGGER.debug(f"Downloading '{url}'.")
 
     response = requests.get(url, stream=True)
     response.raise_for_status()
@@ -82,10 +82,11 @@ def download_file_with_progressbar(
         if isinstance(dest, Path):
             fd.close()
 
+    _LOGGER.debug(f"Done downloading '{url}'.")
     if total_size != 0 and total_size != bytes_written:  # pragma: no cover
         _LOGGER.warning(
-            f"  Downloaded file size mismatch, expected {total_size} bytes got "
-            f"{bytes_written} bytes."
+            f"Size mismatch for file downloaded from '{url}', expected {total_size} "
+            f"bytes got {bytes_written} bytes."
         )
 
 
@@ -150,6 +151,9 @@ def external_process(
 ) -> Iterator[Popen_str]:
     if name is None:
         name = args[0]
+        _LOGGER.debug(f"Starting external process '{' '.join(args)}'")
+    else:
+        _LOGGER.debug(f"Starting external process {name}: '{' '.join(args)}'")
 
     process = Popen(
         args, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cwd, encoding="UTF-8"
@@ -179,8 +183,14 @@ def external_process(
         try:
             process.wait(timeout=terminate_timeout)
         except TimeoutExpired as e:
-            _LOGGER.exception(f"{name} process did not terminate, killing...", e)
+            _LOGGER.exception(
+                f"External process {name} did not terminate, killing...", e
+            )
             process.kill()
+        _LOGGER.debug(f"Ended external process {name}")
 
         if check_return_code_zero and process.returncode != 0:
-            raise Exception(f"{name} had non-zero return code: {process.returncode}")
+            raise Exception(
+                f"External process {name} had non-zero return code: "
+                f"{process.returncode}"
+            )

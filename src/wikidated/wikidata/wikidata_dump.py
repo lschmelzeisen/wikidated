@@ -68,6 +68,9 @@ class WikidataDump:
     def download(
         self, *, sites_table: bool = True, pages_meta_history: bool = True
     ) -> None:
+        _LOGGER.info(
+            f"Downloading Wikidata dump {self.version:%4Y%2m%2d} from '{self.mirror}'."
+        )
         dump_files: MutableSequence[WikidataDumpFile] = []
 
         if sites_table:
@@ -77,8 +80,12 @@ class WikidataDump:
             dump_files.extend(self.pages_meta_history.values())
 
         with tqdm(
-            total=len(dump_files), dynamic_ncols=True, position=1
+            desc=f"Wikidata dump {self.version:%4Y%2m%2d} files",
+            total=len(dump_files),
+            dynamic_ncols=True,
+            position=1,
         ) as progress_bar_files, tqdm(
+            desc=f"Wikidata dump {self.version:%4Y%2m%2d} bytes",
             total=sum(dump_file.size for dump_file in dump_files),
             dynamic_ncols=True,
             position=2,
@@ -90,6 +97,8 @@ class WikidataDump:
                 dump_file.download()
                 progress_bar_files.update(1)
                 progress_bar_size.update(dump_file.size)
+
+        _LOGGER.info(f"Done downloading Wikidata dump {self.version:%4Y%2m%2d}.")
 
     def _construct_dumps(
         self, dump_type: Type[_T_WikidataDumpFile], dump_type_id: str
@@ -133,13 +142,15 @@ class _WikidataDumpStatus(PydanticModel):
         path = dump_dir / f"wikidatawiki-{version:%4Y%2m%2d}-dumpstatus.json"
         if not path.exists():
             url = f"{mirror}/wikidatawiki/{version:%4Y%2m%2d}/dumpstatus.json"
-            _LOGGER.debug(f"Downloading dump status from URL '{url}'...")
+            _LOGGER.debug(f"Downloading Wikidata dump status from '{url}'.")
 
             response = requests.get(url)
             response.raise_for_status()
             path.parent.mkdir(exist_ok=True, parents=True)
             with path.open("w", encoding="UTF-8") as fd:
                 fd.write(json.dumps(response.json(), indent=2) + "\n")
+
+            _LOGGER.debug("Done downloading Wikidata dump status.")
 
         dump_status = _WikidataDumpStatus.parse_file(path)
         for job_name, job in dump_status.jobs.items():

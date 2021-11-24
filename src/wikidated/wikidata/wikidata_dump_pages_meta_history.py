@@ -17,6 +17,7 @@
 import re
 from datetime import date, datetime
 from itertools import chain
+from logging import getLogger
 from pathlib import Path
 from typing import Iterator, Mapping, MutableMapping, Optional, Tuple
 from xml.sax.saxutils import unescape
@@ -30,6 +31,8 @@ from wikidated.wikidata.wikidata_revision_base import (
     WikidataRevisionBase,
     WikidataRevisionMetadata,
 )
+
+_LOGGER = getLogger(__name__)
 
 
 class WikidataSiteInfo(PydanticModel):
@@ -70,10 +73,20 @@ class WikidataDumpPagesMetaHistory(WikidataDumpFile):
 
     def site_info(self) -> WikidataSiteInfo:
         assert self.path.exists()
+
+        _LOGGER.debug(
+            f"Parsing site info from pages meta history dump {self.path.name}."
+        )
+
         with SevenZipArchive(self.path).read() as fd:
             lines = iter(fd)
             self._assert_opening_tag(next(lines), "mediawiki")
-            return self._process_site_info(lines)
+            site_info = self._process_site_info(lines)
+
+        _LOGGER.debug(
+            f"Done parsing site info from pages meta history dump {self.path.name}."
+        )
+        return site_info
 
     @classmethod
     def _process_site_info(cls, lines: Iterator[str]) -> WikidataSiteInfo:
@@ -115,12 +128,18 @@ class WikidataDumpPagesMetaHistory(WikidataDumpFile):
     ) -> Iterator[WikidataRawRevision]:
         assert self.path.exists()
 
+        _LOGGER.debug(
+            f"Parsing revisions from pages meta history dump {self.path.name}."
+        )
+
         progress_bar: Optional[tqdm] = (
             tqdm(desc=self.path.name, total=len(self.page_ids), dynamic_ncols=True)
             if display_progress_bar
             else None
         )
 
+        num_entities = 0
+        num_revisions = 0
         with SevenZipArchive(self.path).read() as fd:
             lines = iter(fd)
             self._assert_opening_tag(next(lines), "mediawiki")
@@ -133,7 +152,10 @@ class WikidataDumpPagesMetaHistory(WikidataDumpFile):
             for line in lines:
                 if self._is_closing_tag(line, "mediawiki"):
                     break
-                yield from self._process_page(chain((line,), lines))
+                for revision in self._process_page(chain((line,), lines)):
+                    yield revision
+                    num_revisions += 1
+                num_entities += 1
                 if progress_bar:
                     progress_bar.update(1)
 
@@ -146,6 +168,11 @@ class WikidataDumpPagesMetaHistory(WikidataDumpFile):
                 raise Exception(f"Expected EOF, instead line was: '{line}'.")
             except StopIteration:
                 pass
+
+        _LOGGER.debug(
+            f"Done parsing revisions from pages meta history dump {self.path.name}. "
+            f"Found {num_entities:,} entities and {num_revisions:,} revisions."
+        )
 
     @classmethod
     def _process_page(cls, lines: Iterator[str]) -> Iterator[WikidataRawRevision]:

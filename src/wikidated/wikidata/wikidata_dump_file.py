@@ -36,12 +36,17 @@ class WikidataDumpFile:
         if self.path.exists():
             hashcheck(self.path, sha1(), self.sha1)
             _LOGGER.debug(
-                f"File '{self.path.name}' already exists, skipping download..."
+                f"Wikidata dump file '{self.path.name}' already exists with matching "
+                "sha1 checksum, skipping download."
             )
             return
 
+        _LOGGER.debug(
+            f"Downloading Wikidata dump file '{self.path.name}' from '{self.url}'."
+        )
         self.path.parent.mkdir(exist_ok=True, parents=True)
         path_tmp = self.path.parent / ("tmp." + self.path.name)
         download_file_with_progressbar(self.url, path_tmp, description=self.path.name)
         hashcheck(path_tmp, sha1(), self.sha1)
         path_tmp.rename(self.path)
+        _LOGGER.debug(f"Done downloading Wikidata dump file '{self.path.name}'.")

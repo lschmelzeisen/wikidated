@@ -52,6 +52,10 @@ class JavaArtifact(NamedTuple):
     version: str
 
     @property
+    def identifier(self) -> str:
+        return f"{self.group_id}:{self.artifact_id}:{self.version}"
+
+    @property
     def path(self) -> Path:
         return Path(f"{self.artifact_id}-{self.version}.jar")
 
@@ -62,16 +66,19 @@ class JavaDependencyDownloader:
         self._maven_dir = maven_dir
 
     def download_java_dependencies(self, artifacts: Collection[JavaArtifact]) -> None:
+        artifacts_str = "', '".join(artifact.identifier for artifact in artifacts)
         if self._are_artifacts_present(artifacts):
-            _LOGGER.debug("JARs are already present, skipping download...")
+            _LOGGER.debug(
+                f"Artifacts '{artifacts_str}' already exist in '{self._jars_dir}', "
+                "skipping download."
+            )
             return
 
         self._download_maven()
 
-        _LOGGER.debug("Downloading JARs with Maven...")
+        _LOGGER.info(f"Downloading JARs '{artifacts_str}' to '{self._jars_dir}'.")
         self._download_artifacts_with_maven(artifacts)
-
-        _LOGGER.debug("  Done.")
+        _LOGGER.info("Done downloading JARs.")
 
     def _are_artifacts_present(self, artifacts: Collection[JavaArtifact]) -> bool:
         # Check if JARs are present or need to be downloaded still. Since we do not know
@@ -88,21 +95,32 @@ class JavaDependencyDownloader:
 
     def _download_maven(self) -> None:
         if self._maven_bin_path().exists():
-            _LOGGER.debug("Found Maven executable, skipping download...")
+            _LOGGER.debug(
+                f"Maven {_MAVEN_VERSION} executable already exists in "
+                f"'{self._maven_dir}', skipping download."
+            )
             return
 
+        _LOGGER.info(
+            f"Downloading Maven {_MAVEN_VERSION} executable to '{self._maven_dir}'."
+        )
         with TemporaryFile() as maven_bin_archive_fd:
-            _LOGGER.debug("Downloading Maven distribution...")
-            download_file_with_progressbar(_MAVEN_BIN_ARCHIVE_URL, maven_bin_archive_fd)
+            _LOGGER.debug("Downloading Maven distribution.")
+            download_file_with_progressbar(
+                _MAVEN_BIN_ARCHIVE_URL,
+                maven_bin_archive_fd,
+                description=f"apache-maven-{_MAVEN_VERSION}-bin.tar.gz",
+            )
             maven_bin_archive_fd.seek(0)
 
-            _LOGGER.debug("Verifying Maven distribution...")
+            _LOGGER.debug("Verifying Maven distribution.")
             hashcheck(maven_bin_archive_fd, sha512(), _MAVEN_BIN_ARCHIVE_SHA512)
             maven_bin_archive_fd.seek(0)
 
-            _LOGGER.debug("Extracting Maven distribution...")
+            _LOGGER.debug("Extracting Maven distribution.")
             maven_bin_archive = TarFile.open(fileobj=maven_bin_archive_fd)
             maven_bin_archive.extractall(self._maven_dir)
+        _LOGGER.info(f"Done downloading Maven {_MAVEN_VERSION} executable.")
 
     @staticmethod
     @contextmanager

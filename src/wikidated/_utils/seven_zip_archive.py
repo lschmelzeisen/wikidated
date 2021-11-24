@@ -23,6 +23,8 @@ from pathlib import Path
 from subprocess import DEVNULL, PIPE
 from typing import IO, Iterator, Optional
 
+from typing_extensions import Final
+
 from wikidated._utils.misc import external_process
 
 _LOGGER = getLogger(__name__)
@@ -30,10 +32,11 @@ _LOGGER = getLogger(__name__)
 
 class SevenZipArchive:
     def __init__(self, path: Path) -> None:
-        self._path = path
+        self.path: Final = path
 
     @classmethod
     def from_dir(cls, dir_: Path, path: Path) -> SevenZipArchive:
+        _LOGGER.debug(f"Creating 7z archive {path} from directory {dir_}.")
         with external_process(
             ("7z", "a", "-ms=off", relpath(path, dir_), "."),
             stdin=DEVNULL,
@@ -53,9 +56,13 @@ class SevenZipArchive:
         # If you plan want to create archives with many files, it is better to just
         # create a directory with all files in it as you need them, and than to convert
         # that to an archive using SevenZipArchive.from_dir().
+        if file_name:
+            _LOGGER.debug(f"Writing file {file_name} to 7z archive {self.path}.")
+        else:
+            _LOGGER.debug(f"Writing to 7z archive {self.path}.")
         file_name_str = str(file_name) if file_name else ""
         with external_process(
-            ("7z", "a", "-bd", "-bso0", f"-si{file_name_str}", str(self._path)),
+            ("7z", "a", "-bd", "-bso0", f"-si{file_name_str}", str(self.path)),
             stdin=PIPE,
             stdout=PIPE,
             stderr=PIPE,
@@ -68,13 +75,17 @@ class SevenZipArchive:
 
     @contextmanager
     def read(self, file_name: Optional[Path] = None) -> Iterator[IO[str]]:
+        if file_name:
+            _LOGGER.debug(f"Reading file {file_name} from 7z archive {self.path}.")
+        else:
+            _LOGGER.debug(f"Reading from 7z archive {self.path}.")
         file_name_str = str(file_name) if file_name else ""
         # Not sure how to check for errors here (particularly, if one wants to end
         # processing output from stdout, before the full archive if depleted). Waiting
         # for output on stderr stalls the process. Terminating while output in stdout is
         # still being generated results in a -15 return code.
         with external_process(
-            ("7z", "x", "-so", str(self._path), file_name_str),
+            ("7z", "x", "-so", str(self.path), file_name_str),
             stdin=DEVNULL,
             stdout=PIPE,
             stderr=PIPE,
@@ -83,8 +94,9 @@ class SevenZipArchive:
             yield seven_zip_process.stdout
 
     def iter_file_names(self) -> Iterator[Path]:
+        _LOGGER.debug(f"Iterating file names in 7z archive {self.path}.")
         with external_process(
-            ("7z", "l", "-ba", "-slt", str(self._path)),
+            ("7z", "l", "-ba", "-slt", str(self.path)),
             stdin=DEVNULL,
             stdout=PIPE,
             stderr=PIPE,

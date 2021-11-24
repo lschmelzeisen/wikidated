@@ -120,7 +120,10 @@ class WikidatedEntityStreamsFile:
         archive_path = cls._make_archive_path(dataset_dir, pages_meta_history.page_ids)
         revisions_iter: Iterator[WikidatedRevision] = iter([])
         if archive_path.exists():
-            _LOGGER.debug(f"File '{archive_path}' already exists, skipping building.")
+            _LOGGER.debug(
+                f"Entity streams file '{archive_path.name}' already exists, skipping "
+                f"building."
+            )
         else:
             revisions_iter = cls._build_archive(
                 archive_path, pages_meta_history, rdf_converter
@@ -137,6 +140,8 @@ class WikidatedEntityStreamsFile:
         pages_meta_history: WikidataDumpPagesMetaHistory,
         rdf_converter: WikidataRdfConverter,
     ) -> Iterator[WikidatedRevision]:
+        _LOGGER.debug(f"Building entity streams file {archive_path.name}.")
+
         tmp_dir = archive_path.parent / ("tmp." + archive_path.name)
         if tmp_dir.exists():
             # TODO: If desired, one could rewrite this for better recovery from
@@ -145,25 +150,29 @@ class WikidatedEntityStreamsFile:
             rmtree(tmp_dir)
         tmp_dir.mkdir(exist_ok=True, parents=True)
 
-        for entity_meta, revisions in groupby(
+        for page_id, revisions in groupby(
             pages_meta_history.iter_revisions(display_progress_bar=False),
-            lambda revision: revision.entity_metadata(),
+            lambda revision: revision.page_id,
         ):
             wikidated_revisions = cls._iter_wikidated_revisions(
                 revisions, rdf_converter
             )
 
             # In the following we check if we can access the first element in the
-            # iterable. If it does not exist, the current page  does not describe a
+            # iterable. If it does not exist, the current page does not describe a
             # Wikidata entity (e.g., it could be a wikitext page). Only if it exists, we
             # add a file to the output archive.
 
             try:
                 first_wikidated_revision = next(wikidated_revisions)
             except StopIteration:
+                _LOGGER.debug(
+                    f"Could not construct any Wikidated revisions for page {page_id}. "
+                    "Most likely this page does not describe a Wikidata entity."
+                )
                 continue
 
-            with (tmp_dir / cls._make_archive_component_path(entity_meta.page_id)).open(
+            with (tmp_dir / cls._make_archive_component_path(page_id)).open(
                 "w", encoding="UTF-8"
             ) as fd:
                 for wikidated_revision in chain(
@@ -174,6 +183,8 @@ class WikidatedEntityStreamsFile:
 
         SevenZipArchive.from_dir(tmp_dir, archive_path)
         rmtree(tmp_dir)
+
+        _LOGGER.debug(f"Done building entity streams file {archive_path.name}.")
 
     @classmethod
     def _iter_wikidated_revisions(
@@ -187,7 +198,10 @@ class WikidatedEntityStreamsFile:
             try:
                 rdf_revision = rdf_converter(revision)
             except WikidataRdfConversionError:
-                _LOGGER.exception("RDF conversion error.")
+                _LOGGER.debug(
+                    f"RDF conversion error for revision {revision.revision_id}.",
+                    exc_info=True,
+                )
                 continue
 
             triples_set = set(rdf_revision.triples)
@@ -222,17 +236,22 @@ class WikidatedEntityStreams:
         jars_dir: Path,
     ) -> None:
         self._dataset_dir = dataset_dir
-        self._files_by_page_ids = RangeMap[WikidatedEntityStreamsFile]()
+        self._files_by_page_ids: Optional[RangeMap[WikidatedEntityStreamsFile]] = None
         self._jars_dir = jars_dir
         self._jvm_manager: Optional[JvmManager] = None
         self._sites_table: Optional[WikidataDumpSitesTable] = None
 
     def load(self) -> None:
+        _LOGGER.debug(f"Loading entity streams for dataset {self._dataset_dir.name}.")
+        self._files_by_page_ids = RangeMap[WikidatedEntityStreamsFile]()
         for path in self._dataset_dir.glob(
             WikidatedEntityStreamsFile.archive_path_glob(self._dataset_dir)
         ):
             file = WikidatedEntityStreamsFile.load(path)
             self._files_by_page_ids[file.page_ids] = file
+        _LOGGER.debug(
+            f"Done loading entity streams for dataset {self._dataset_dir.name}."
+        )
 
     def build(
         self,
@@ -240,7 +259,9 @@ class WikidatedEntityStreams:
         pages_meta_history: RangeMap[WikidataDumpPagesMetaHistory],
         max_workers: Optional[int] = 4,
     ) -> None:
+        _LOGGER.debug(f"Building entity streams for dataset {self._dataset_dir.name}.")
         self._sites_table = sites_table
+        self._files_by_page_ids = RangeMap[WikidatedEntityStreamsFile]()
         for file in parallelize(
             self._build_part,
             pages_meta_history.values(),
@@ -252,6 +273,9 @@ class WikidatedEntityStreams:
             progress_bar_desc="Entity Streams",
         ):
             self._files_by_page_ids[file.page_ids] = file
+        _LOGGER.debug(
+            f"Done building entity streams for dataset {self._dataset_dir.name}."
+        )
 
     @classmethod
     def _build_part(
@@ -273,7 +297,6 @@ class WikidatedEntityStreams:
         progress_total = len(argument.page_ids)
         update_progress(progress_name, progress_current, progress_total)
         for revision in revisions_builder:
-            # TODO: count number of processed revisions and exceptions?
             if progress_current != revision.page_id - file.page_ids.start:
                 progress_current = revision.page_id - file.page_ids.start
                 update_progress(progress_name, progress_current, progress_total)
@@ -282,7 +305,6 @@ class WikidatedEntityStreams:
 
     def _init_worker_with_rdf_converter(self) -> Mapping[str, object]:
         self._jvm_manager = JvmManager(jars_dir=self._jars_dir)
-        # TODO: log jvm errors?
         assert self._sites_table is not None
         return {
             "rdf_converter": WikidataRdfConverter(self._sites_table, self._jvm_manager)
