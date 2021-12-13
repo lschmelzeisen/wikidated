@@ -18,8 +18,8 @@ from __future__ import annotations
 
 import heapq
 import re
-from datetime import date
-from itertools import chain, groupby, takewhile
+from datetime import date, timedelta
+from itertools import chain, takewhile
 from logging import getLogger
 from pathlib import Path
 from shutil import rmtree
@@ -28,7 +28,13 @@ from typing import Iterator, Optional, Tuple
 from tqdm import tqdm  # type: ignore
 from typing_extensions import Final
 
-from wikidated._utils import RangeMap, SevenZipArchive, month_between_dates, next_month
+from wikidated._utils import (
+    RangeMap,
+    SevenZipArchive,
+    days_between_dates,
+    month_between_dates,
+    next_month,
+)
 from wikidated.wikidated_revision import WikidatedRevision
 from wikidated.wikidated_sorted_entity_streams import WikidatedSortedEntityStreams
 
@@ -128,21 +134,28 @@ class WikidatedGlobalStreamFile:
 
         revision_ids: Optional[range] = None
 
-        for day, revisions_of_day in groupby(
-            revisions, key=lambda revision: revision.timestamp.date()
-        ):
-            if day < month:
-                raise Exception(
-                    "Given revision stream has revisions before given month."
-                )
-            elif day >= next_month(month):
-                revisions = chain(revisions_of_day, revisions)
-                break
-
+        for day in days_between_dates(month, next_month(month) - timedelta(days=1)):
             tmp_file = tmp_dir / f"tmp.{day:%4Y%2m%2d}.jsonl"
             revision_ids_of_day: Optional[range] = None
             with tmp_file.open("w", encoding="UTF-8") as fd:
-                for revision in revisions_of_day:
+                for revision in revisions:
+                    revision_date = revision.timestamp.date()
+                    if revision_date < day:
+                        # The revisions stream is sorted by ascending revision IDs and
+                        # revision IDs are increasing over time. However, in rare cases
+                        # a revision's timestamp can lie a few seconds before that of a
+                        # revision with a lower ID. If that happens on date boundaries
+                        # we run into this rare case.
+                        _LOGGER.warning(
+                            f"Revision {revision.revision_id} authored on "
+                            f"{revision.timestamp} has revision ID higher than "
+                            f"revisions authored on {day}. Including it with revision "
+                            f"of that day."
+                        )
+                    elif revision_date > day:
+                        revisions = chain((revision,), revisions)
+                        break
+
                     revision_ids_of_day = range(
                         revision.revision_id
                         if revision_ids_of_day is None
@@ -151,10 +164,15 @@ class WikidatedGlobalStreamFile:
                     )
                     fd.write(revision.json() + "\n")
 
-            # The assertion could only be false if we did not enter the inner for loop
-            # above. However, since groupby returned something for the outer loop,
-            # revisions_of_day is not empty, and we must have entered the inner loop.
-            assert revision_ids_of_day is not None
+            if revision_ids_of_day is None:
+                # No revisions for this day existed.
+                _LOGGER.warning(
+                    f"Did not find any revisions for day {day:%Y%m%d} in global stream "
+                    f"file {cls.archive_path_glob(dataset_dir, month)}."
+                )
+                tmp_file.unlink()
+                continue
+
             revision_ids = (
                 revision_ids_of_day
                 if revision_ids is None
@@ -195,9 +213,9 @@ class WikidatedGlobalStreamFile:
                 f"Global stream file '{archive_path}' already exists, skipping "
                 f"building but draining revisions iterator."
             )
+            next_month_ = next_month(month)
             for _ in takewhile(
-                lambda revision: revision.timestamp.date() < next_month(month),
-                revisions,
+                lambda revision: revision.timestamp.date() < next_month_, revisions
             ):
                 pass
             return True

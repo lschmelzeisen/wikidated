@@ -15,7 +15,7 @@
 #
 
 from contextlib import contextmanager
-from datetime import date
+from datetime import date, timedelta
 from logging import getLogger
 from pathlib import Path
 from subprocess import PIPE, Popen, TimeoutExpired
@@ -33,6 +33,15 @@ def next_month(day: date) -> date:
         return date(year=day.year + 1, month=1, day=1)
     else:
         return date(year=day.year, month=day.month + 1, day=1)
+
+
+def days_between_dates(start: date, stop: date) -> Sequence[date]:
+    results = []
+    cur_date = start
+    while cur_date <= stop:
+        results.append(cur_date)
+        cur_date += timedelta(days=1)
+    return results
 
 
 def month_between_dates(start: date, stop: date) -> Sequence[date]:
