@@ -44,7 +44,7 @@ def days_between_dates(start: date, stop: date) -> Sequence[date]:
     return results
 
 
-def month_between_dates(start: date, stop: date) -> Sequence[date]:
+def months_between_dates(start: date, stop: date) -> Sequence[date]:
     results = []
     cur_date = start if start.day == 1 else next_month(start)
     while cur_date <= stop:

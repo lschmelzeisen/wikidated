@@ -32,14 +32,14 @@ from wikidated._utils import (
     RangeMap,
     SevenZipArchive,
     days_between_dates,
-    month_between_dates,
+    months_between_dates,
     next_month,
 )
 from wikidated.wikidated_revision import WikidatedRevision
 from wikidated.wikidated_sorted_entity_streams import WikidatedSortedEntityStreams
 
 _LOGGER = getLogger(__name__)
-_WIKIDATA_INCEPTION_MONTH = date(year=2012, month=10, day=1)
+_WIKIDATA_INCEPTION_DATE = date(year=2012, month=10, day=29)
 
 
 class WikidatedGlobalStreamFile:
@@ -149,7 +149,7 @@ class WikidatedGlobalStreamFile:
                         _LOGGER.warning(
                             f"Revision {revision.revision_id} authored on "
                             f"{revision.timestamp} has revision ID higher than "
-                            f"revisions authored on {day}. Including it with revision "
+                            f"revisions authored on {day}. Including it with revisions "
                             f"of that day."
                         )
                     elif revision_date > day:
@@ -267,7 +267,9 @@ class WikidatedGlobalStream:
         self._files_by_months = RangeMap[WikidatedGlobalStreamFile]()
         self._files_by_revision_ids = RangeMap[WikidatedGlobalStreamFile]()
         for month in tqdm(
-            month_between_dates(_WIKIDATA_INCEPTION_MONTH, wikidata_dump_version),
+            months_between_dates(
+                _WIKIDATA_INCEPTION_DATE.replace(day=1), wikidata_dump_version
+            ),
             desc="Global Stream",
         ):
             file, sorted_revisions = WikidatedGlobalStreamFile.build(
