@@ -135,6 +135,8 @@ class WikidatedGlobalStreamFile:
         revision_ids: Optional[range] = None
 
         for day in days_between_dates(month, next_month(month) - timedelta(days=1)):
+            if day < _WIKIDATA_INCEPTION_DATE:
+                continue
             tmp_file = tmp_dir / f"tmp.{day:%4Y%2m%2d}.jsonl"
             revision_ids_of_day: Optional[range] = None
             with tmp_file.open("w", encoding="UTF-8") as fd:
