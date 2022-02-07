@@ -54,7 +54,7 @@ class SevenZipArchive:
     def write(self, file_name: Optional[Path] = None) -> Iterator[IO[str]]:
         # This method seems to take longer the more file already exist in the archive.
         # If you plan want to create archives with many files, it is better to just
-        # create a directory with all files in it as you need them, and than to convert
+        # create a directory with all files in it as you need them, and then to convert
         # that to an archive using SevenZipArchive.from_dir().
         if file_name:
             _LOGGER.debug(f"Writing file {file_name} to 7z archive {self.path}.")

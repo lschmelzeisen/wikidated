@@ -253,6 +253,20 @@ class WikidatedGlobalStream:
         self._files_by_months = files_by_months
         self._files_by_revision_ids = files_by_revision_ids
 
+    def __len__(self) -> int:
+        return len(self._files_by_months)
+
+    def __iter__(self) -> Iterator[WikidatedGlobalStreamFile]:
+        return iter(self._files_by_months.values())
+
+    def __getitem__(self, item: object) -> WikidatedGlobalStreamFile:
+        if isinstance(item, date):
+            return self._files_by_months[item.toordinal()]
+        elif isinstance(item, int):
+            return self._files_by_revision_ids[item]
+        else:
+            raise TypeError("item needs to be of type date or int.")
+
     @classmethod
     def load(cls, dataset_dir: Path) -> WikidatedGlobalStream:
         _LOGGER.debug(f"Loading global stream for dataset {dataset_dir.name}.")
@@ -278,14 +292,10 @@ class WikidatedGlobalStream:
 
         sorted_entity_streams_iters = [
             sorted_entity_streams_file.iter_revisions()
-            for sorted_entity_streams_file in (
-                sorted_entity_streams._files_by_page_ids.values()
-            )
+            for sorted_entity_streams_file in sorted_entity_streams
         ]
         sorted_revisions = iter(
-            heapq.merge(
-                *sorted_entity_streams_iters, key=lambda revision: revision.revision_id
-            )
+            heapq.merge(*sorted_entity_streams_iters, key=lambda rev: rev.revision_id)
         )
 
         files_by_months = RangeMap[WikidatedGlobalStreamFile]()

@@ -51,9 +51,9 @@ class WikidataRawRevision(WikidataRevisionBase):
 class WikidataDumpPagesMetaHistory(WikidataDumpFile):
     # Does not use an actual XML library for parsing the dumps content as we can make
     # some fairly strong assumptions about the XML used in the dump. Mainly we have that
-    # each element starts/ends on it's own line and that we know the exact order of
+    # each element starts/ends on its own line and that we know the exact order of
     # elements occurring within each other. As such the code will need to be manually
-    # updated to changes in the dump format but on the other hand is much faster.
+    # updated to change in the dump format but on the other hand is much faster.
 
     def __init__(self, *, path: Path, url: str, sha1: str, size: int) -> None:
         super().__init__(path=path, url=url, sha1=sha1, size=size)

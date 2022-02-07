@@ -91,7 +91,7 @@ class WikidatedSortedEntityStreamsFile:
             _LOGGER.debug(f"Building sorted entity streams file {archive_path.name}.")
             tmp_path = archive_path.parent / ("tmp." + archive_path.name)
             revisions = list(entity_streams_file.iter_revisions())
-            revisions.sort(key=lambda revision: revision.revision_id)
+            revisions.sort(key=lambda rev: rev.revision_id)
             with SevenZipArchive(tmp_path).write() as fd:
                 for revision in revisions:
                     fd.write(revision.json() + "\n")
@@ -108,6 +108,18 @@ class WikidatedSortedEntityStreamsFile:
 class WikidatedSortedEntityStreams:
     def __init__(self, files_by_page_ids: RangeMap[WikidatedSortedEntityStreamsFile]):
         self._files_by_page_ids = files_by_page_ids
+
+    def __len__(self) -> int:
+        return len(self._files_by_page_ids)
+
+    def __iter__(self) -> Iterator[WikidatedSortedEntityStreamsFile]:
+        return iter(self._files_by_page_ids.values())
+
+    def __getitem__(self, item: object) -> WikidatedSortedEntityStreamsFile:
+        if isinstance(item, int):
+            return self._files_by_page_ids[item]
+        else:
+            raise TypeError("item needs to be of type int.")
 
     @classmethod
     def load(cls, dataset_dir: Path) -> WikidatedSortedEntityStreams:
@@ -129,10 +141,7 @@ class WikidatedSortedEntityStreams:
     ) -> WikidatedSortedEntityStreams:
         _LOGGER.debug(f"Building sorted entity streams for dataset {dataset_dir.name}.")
         files_by_page_ids = RangeMap[WikidatedSortedEntityStreamsFile]()
-        for entity_streams_file in tqdm(
-            entity_streams._files_by_page_ids.values(),
-            desc="Sorted Entity Streams",
-        ):
+        for entity_streams_file in tqdm(entity_streams, desc="Sorted Entity Streams"):
             file = WikidatedSortedEntityStreamsFile.build(
                 dataset_dir, entity_streams_file
             )

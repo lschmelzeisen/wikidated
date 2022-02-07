@@ -239,6 +239,18 @@ class WikidatedEntityStreams:
     def __init__(self, files_by_page_ids: RangeMap[WikidatedEntityStreamsFile]) -> None:
         self._files_by_page_ids = files_by_page_ids
 
+    def __len__(self) -> int:
+        return len(self._files_by_page_ids)
+
+    def __iter__(self) -> Iterator[WikidatedEntityStreamsFile]:
+        return iter(self._files_by_page_ids.values())
+
+    def __getitem__(self, item: object) -> WikidatedEntityStreamsFile:
+        if isinstance(item, int):
+            return self._files_by_page_ids[item]
+        else:
+            raise TypeError("item needs to be of type int.")
+
     @classmethod
     def load(cls, dataset_dir: Path) -> WikidatedEntityStreams:
         _LOGGER.debug(f"Loading entity streams for dataset {dataset_dir.name}.")

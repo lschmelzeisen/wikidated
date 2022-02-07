@@ -82,7 +82,7 @@ class JavaDependencyDownloader:
 
     def _are_artifacts_present(self, artifacts: Collection[JavaArtifact]) -> bool:
         # Check if JARs are present or need to be downloaded still. Since we do not know
-        # the transitive dependencies yet we use the presence of the JARs we are given
+        # the transitive dependencies yet, we use the presence of the JARs we are given
         # as a heuristic for whether everything is there.
         for artifact in artifacts:
             if not (self._jars_dir / artifact.path).exists():

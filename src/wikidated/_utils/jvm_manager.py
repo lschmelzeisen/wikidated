@@ -44,7 +44,7 @@ class JvmManager:
         self._java_logging_bridge = _JavaLoggingBridge()
 
     def close(self) -> None:
-        assert self  # Stop PyCharm from suggesting to make this method static.
+        assert self  # Stop PyCharm from suggesting making this method static.
 
         _LOGGER.debug("Shutting down JVM.")
         shutdownJVM()

@@ -309,7 +309,7 @@ class WikidataRdfConverter:
                 # spaces in literals are not split.
                 *map(cls._prefix_ntriples_iri, triple.split(" ", 2))
             )
-            # Theoretically, " .\n" could also occur inside of a literal. However,
+            # Theoretically, " .\n" could also occur inside a literal. However,
             # parsing for that would be far more work and much slower.
             for triple in ntriples.split(" .\n")
             if triple  # Necessary as "s p o .\n".split(" .\n") returns ["a b c", ""].
