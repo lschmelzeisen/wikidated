@@ -19,7 +19,7 @@ from __future__ import annotations
 import re
 from logging import getLogger
 from pathlib import Path
-from typing import Iterator, Optional, Tuple
+from typing import Iterator, Tuple
 
 from tqdm import tqdm  # type: ignore
 from typing_extensions import Final
@@ -106,39 +106,38 @@ class WikidatedSortedEntityStreamsFile:
 
 
 class WikidatedSortedEntityStreams:
-    def __init__(self, dataset_dir: Path):
-        self._dataset_dir = dataset_dir
-        self._files_by_page_ids: Optional[
-            RangeMap[WikidatedSortedEntityStreamsFile]
-        ] = None
+    def __init__(self, files_by_page_ids: RangeMap[WikidatedSortedEntityStreamsFile]):
+        self._files_by_page_ids = files_by_page_ids
 
-    def load(self) -> None:
-        _LOGGER.debug(
-            f"Loading sorted entity streams for dataset {self._dataset_dir.name}."
-        )
-        self._files_by_page_ids = RangeMap[WikidatedSortedEntityStreamsFile]()
-        for path in self._dataset_dir.glob(
-            WikidatedSortedEntityStreamsFile.archive_path_glob(self._dataset_dir)
+    @classmethod
+    def load(cls, dataset_dir: Path) -> WikidatedSortedEntityStreams:
+        _LOGGER.debug(f"Loading sorted entity streams for dataset {dataset_dir.name}.")
+        files_by_page_ids = RangeMap[WikidatedSortedEntityStreamsFile]()
+        for path in dataset_dir.glob(
+            WikidatedSortedEntityStreamsFile.archive_path_glob(dataset_dir)
         ):
             file = WikidatedSortedEntityStreamsFile.load(path)
-            self._files_by_page_ids[file.page_ids] = file
+            files_by_page_ids[file.page_ids] = file
         _LOGGER.debug(
-            f"Done loading sorted entity streams for dataset {self._dataset_dir.name}."
+            f"Done loading sorted entity streams for dataset {dataset_dir.name}."
         )
+        return WikidatedSortedEntityStreams(files_by_page_ids)
 
-    def build(self, entity_streams: WikidatedEntityStreams) -> None:
-        _LOGGER.debug(
-            f"Building sorted entity streams for dataset {self._dataset_dir.name}."
-        )
-        self._files_by_page_ids = RangeMap[WikidatedSortedEntityStreamsFile]()
+    @classmethod
+    def build(
+        cls, dataset_dir: Path, entity_streams: WikidatedEntityStreams
+    ) -> WikidatedSortedEntityStreams:
+        _LOGGER.debug(f"Building sorted entity streams for dataset {dataset_dir.name}.")
+        files_by_page_ids = RangeMap[WikidatedSortedEntityStreamsFile]()
         for entity_streams_file in tqdm(
             entity_streams._files_by_page_ids.values(),
             desc="Sorted Entity Streams",
         ):
             file = WikidatedSortedEntityStreamsFile.build(
-                self._dataset_dir, entity_streams_file
+                dataset_dir, entity_streams_file
             )
-            self._files_by_page_ids[file.page_ids] = file
+            files_by_page_ids[file.page_ids] = file
         _LOGGER.debug(
-            f"Done building sorted entity streams for dataset {self._dataset_dir.name}."
+            f"Done building sorted entity streams for dataset {dataset_dir.name}."
         )
+        return WikidatedSortedEntityStreams(files_by_page_ids)

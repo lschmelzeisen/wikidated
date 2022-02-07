@@ -245,33 +245,36 @@ class WikidatedGlobalStreamFile:
 
 
 class WikidatedGlobalStream:
-    def __init__(self, dataset_dir: Path) -> None:
-        self._dataset_dir = dataset_dir
-        self._files_by_months: Optional[RangeMap[WikidatedGlobalStreamFile]] = None
-        self._files_by_revision_ids: Optional[
-            RangeMap[WikidatedGlobalStreamFile]
-        ] = None
+    def __init__(
+        self,
+        files_by_months: RangeMap[WikidatedGlobalStreamFile],
+        files_by_revision_ids: RangeMap[WikidatedGlobalStreamFile],
+    ) -> None:
+        self._files_by_months = files_by_months
+        self._files_by_revision_ids = files_by_revision_ids
 
-    def load(self) -> None:
-        _LOGGER.debug(f"Loading global stream for dataset {self._dataset_dir.name}.")
-        self._files_by_months = RangeMap[WikidatedGlobalStreamFile]()
-        self._files_by_revision_ids = RangeMap[WikidatedGlobalStreamFile]()
-        for path in self._dataset_dir.glob(
-            WikidatedGlobalStreamFile.archive_path_glob(self._dataset_dir)
+    @classmethod
+    def load(cls, dataset_dir: Path) -> WikidatedGlobalStream:
+        _LOGGER.debug(f"Loading global stream for dataset {dataset_dir.name}.")
+        files_by_months = RangeMap[WikidatedGlobalStreamFile]()
+        files_by_revision_ids = RangeMap[WikidatedGlobalStreamFile]()
+        for path in dataset_dir.glob(
+            WikidatedGlobalStreamFile.archive_path_glob(dataset_dir)
         ):
             file = WikidatedGlobalStreamFile.load(path)
-            self._files_by_months[file.months] = file
-            self._files_by_revision_ids[file.revision_ids] = file
-        _LOGGER.debug(
-            f"Done loading global stream for dataset {self._dataset_dir.name}."
-        )
+            files_by_months[file.months] = file
+            files_by_revision_ids[file.revision_ids] = file
+        _LOGGER.debug(f"Done loading global stream for dataset {dataset_dir.name}.")
+        return WikidatedGlobalStream(files_by_months, files_by_revision_ids)
 
+    @classmethod
     def build(
-        self,
+        cls,
+        dataset_dir: Path,
         sorted_entity_streams: WikidatedSortedEntityStreams,
         wikidata_dump_version: date,
-    ) -> None:
-        _LOGGER.debug(f"Building global stream for dataset {self._dataset_dir.name}.")
+    ) -> WikidatedGlobalStream:
+        _LOGGER.debug(f"Building global stream for dataset {dataset_dir.name}.")
 
         sorted_entity_streams_iters = [
             sorted_entity_streams_file.iter_revisions()
@@ -285,8 +288,8 @@ class WikidatedGlobalStream:
             )
         )
 
-        self._files_by_months = RangeMap[WikidatedGlobalStreamFile]()
-        self._files_by_revision_ids = RangeMap[WikidatedGlobalStreamFile]()
+        files_by_months = RangeMap[WikidatedGlobalStreamFile]()
+        files_by_revision_ids = RangeMap[WikidatedGlobalStreamFile]()
         for month in tqdm(
             months_between_dates(
                 _WIKIDATA_INCEPTION_DATE.replace(day=1), wikidata_dump_version
@@ -294,10 +297,10 @@ class WikidatedGlobalStream:
             desc="Global Stream",
         ):
             file, sorted_revisions = WikidatedGlobalStreamFile.build(
-                self._dataset_dir, month, sorted_revisions
+                dataset_dir, month, sorted_revisions
             )
-            self._files_by_months[file.months] = file
-            self._files_by_revision_ids[file.revision_ids] = file
+            files_by_months[file.months] = file
+            files_by_revision_ids[file.revision_ids] = file
         try:
             revision = next(sorted_revisions)
             raise Exception(
@@ -306,6 +309,5 @@ class WikidatedGlobalStream:
         except StopIteration:
             pass
 
-        _LOGGER.debug(
-            f"Done building global stream for dataset {self._dataset_dir.name}."
-        )
+        _LOGGER.debug(f"Done building global stream for dataset {dataset_dir.name}.")
+        return WikidatedGlobalStream(files_by_months, files_by_revision_ids)

@@ -40,11 +40,31 @@ class WikidatedManager:
     ) -> WikidataDump:
         return WikidataDump(self.dump_dir, version=version, mirror=mirror)
 
-    def custom(self, wikidata_dump: WikidataDump) -> WikidatedDataset:
-        return WikidatedDataset(
+    def load_custom(
+        self,
+        dataset_dir_or_wikidata_dump: Union[Path, WikidataDump],
+    ) -> WikidatedDataset:
+        if isinstance(dataset_dir_or_wikidata_dump, Path):
+            dataset_dir = dataset_dir_or_wikidata_dump
+        elif isinstance(dataset_dir_or_wikidata_dump, WikidataDump):
+            dataset_dir = (
+                self.data_dir
+                / f"wikidated-custom-{dataset_dir_or_wikidata_dump.version:%4Y%2m%2d}"
+            )
+        else:
+            raise TypeError(
+                "dataset_dir_or_wikidata_dump must be either a Path or a WikidataDump."
+            )
+        return WikidatedDataset.load(dataset_dir)
+
+    def build_custom(
+        self, wikidata_dump: WikidataDump, max_workers: Optional[int] = 4
+    ) -> WikidatedDataset:
+        return WikidatedDataset.build(
             self.data_dir / f"wikidated-custom-{wikidata_dump.version:%4Y%2m%2d}",
             self.jars_dir,
             wikidata_dump,
+            max_workers=max_workers,
         )
 
     def v1_0(self) -> WikidatedDataset:

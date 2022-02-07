@@ -34,8 +34,7 @@ if __name__ == "__main__":
         wikidata_dump = wikidated_manager.wikidata_dump(date(year=2021, month=6, day=1))
         wikidata_dump.download()
 
-        wikidated_dataset = wikidated_manager.custom(wikidata_dump)
-        wikidated_dataset.build(max_workers=4)
+        wikidated_dataset = wikidated_manager.build_custom(wikidata_dump, max_workers=4)
 
     except Exception:
         # Make exceptions show up in log.

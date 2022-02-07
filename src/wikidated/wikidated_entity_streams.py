@@ -229,53 +229,55 @@ class WikidatedEntityStreamsFile:
             )
 
 
-class WikidatedEntityStreams:
-    def __init__(
-        self,
-        dataset_dir: Path,
-        jars_dir: Path,
-    ) -> None:
-        self._dataset_dir = dataset_dir
-        self._files_by_page_ids: Optional[RangeMap[WikidatedEntityStreamsFile]] = None
-        self._jars_dir = jars_dir
-        self._jvm_manager: Optional[JvmManager] = None
-        self._sites_table: Optional[WikidataDumpSitesTable] = None
+# Variables used to communicate with child processes:
+_JARS_DIR: Optional[Path] = None
+_SITES_TABLE: Optional[WikidataDumpSitesTable] = None
+_JVM_MANAGER: Optional[JvmManager] = None
 
-    def load(self) -> None:
-        _LOGGER.debug(f"Loading entity streams for dataset {self._dataset_dir.name}.")
-        self._files_by_page_ids = RangeMap[WikidatedEntityStreamsFile]()
-        for path in self._dataset_dir.glob(
-            WikidatedEntityStreamsFile.archive_path_glob(self._dataset_dir)
+
+class WikidatedEntityStreams:
+    def __init__(self, files_by_page_ids: RangeMap[WikidatedEntityStreamsFile]) -> None:
+        self._files_by_page_ids = files_by_page_ids
+
+    @classmethod
+    def load(cls, dataset_dir: Path) -> WikidatedEntityStreams:
+        _LOGGER.debug(f"Loading entity streams for dataset {dataset_dir.name}.")
+        files_by_page_ids = RangeMap[WikidatedEntityStreamsFile]()
+        for path in dataset_dir.glob(
+            WikidatedEntityStreamsFile.archive_path_glob(dataset_dir)
         ):
             file = WikidatedEntityStreamsFile.load(path)
-            self._files_by_page_ids[file.page_ids] = file
-        _LOGGER.debug(
-            f"Done loading entity streams for dataset {self._dataset_dir.name}."
-        )
+            files_by_page_ids[file.page_ids] = file
+        _LOGGER.debug(f"Done loading entity streams for dataset {dataset_dir.name}.")
+        return WikidatedEntityStreams(files_by_page_ids)
 
+    @classmethod
     def build(
-        self,
+        cls,
+        dataset_dir: Path,
+        jars_dir: Path,
         sites_table: WikidataDumpSitesTable,
         pages_meta_history: RangeMap[WikidataDumpPagesMetaHistory],
         max_workers: Optional[int] = 4,
-    ) -> None:
-        _LOGGER.debug(f"Building entity streams for dataset {self._dataset_dir.name}.")
-        self._sites_table = sites_table
-        self._files_by_page_ids = RangeMap[WikidatedEntityStreamsFile]()
+    ) -> WikidatedEntityStreams:
+        _LOGGER.debug(f"Building entity streams for dataset {dataset_dir.name}.")
+        global _JARS_DIR, _SITES_TABLE
+        _JARS_DIR = jars_dir
+        _SITES_TABLE = sites_table
+        files_by_page_ids = RangeMap[WikidatedEntityStreamsFile]()
         for file in parallelize(
-            self._build_part,
+            cls._build_part,
             pages_meta_history.values(),
             num_arguments=len(pages_meta_history),
-            extra_arguments={"dataset_dir": self._dataset_dir},
-            init_worker_func=self._init_worker_with_rdf_converter,
-            exit_worker_func=self._exit_worker_with_rdf_converter,
+            extra_arguments={"dataset_dir": dataset_dir},
+            init_worker_func=cls._init_worker_with_rdf_converter,
+            exit_worker_func=cls._exit_worker_with_rdf_converter,
             max_workers=max_workers,
             progress_bar_desc="Entity Streams",
         ):
-            self._files_by_page_ids[file.page_ids] = file
-        _LOGGER.debug(
-            f"Done building entity streams for dataset {self._dataset_dir.name}."
-        )
+            files_by_page_ids[file.page_ids] = file
+        _LOGGER.debug(f"Done building entity streams for dataset {dataset_dir.name}.")
+        return WikidatedEntityStreams(files_by_page_ids)
 
     @classmethod
     def _build_part(
@@ -303,14 +305,17 @@ class WikidatedEntityStreams:
         update_progress(progress_name, progress_total, progress_total)
         return file
 
-    def _init_worker_with_rdf_converter(self) -> Mapping[str, object]:
-        self._jvm_manager = JvmManager(jars_dir=self._jars_dir)
-        assert self._sites_table is not None
-        return {
-            "rdf_converter": WikidataRdfConverter(self._sites_table, self._jvm_manager)
-        }
+    @classmethod
+    def _init_worker_with_rdf_converter(cls) -> Mapping[str, object]:
+        assert _JARS_DIR is not None
+        assert _SITES_TABLE is not None
+        global _JVM_MANAGER
+        _JVM_MANAGER = JvmManager(jars_dir=_JARS_DIR)
+        return {"rdf_converter": WikidataRdfConverter(_SITES_TABLE, _JVM_MANAGER)}
 
-    def _exit_worker_with_rdf_converter(self) -> None:
-        if self._jvm_manager is not None:
-            self._jvm_manager.close()
-            self._jvm_manager = None
+    @classmethod
+    def _exit_worker_with_rdf_converter(cls) -> None:
+        global _JVM_MANAGER
+        if _JVM_MANAGER is not None:
+            _JVM_MANAGER.close()
+            _JVM_MANAGER = None

@@ -33,39 +33,52 @@ _LOGGER = getLogger(__name__)
 class WikidatedDataset:
     def __init__(
         self,
+        entity_streams: Optional[WikidatedEntityStreams],
+        sorted_entity_streams: Optional[WikidatedSortedEntityStreams],
+        global_stream: Optional[WikidatedGlobalStream],
+    ) -> None:
+        self.entity_streams: Final = entity_streams
+        self.sorted_entity_streams: Final = sorted_entity_streams
+        self.global_stream: Final = global_stream
+        pass
+
+    @classmethod
+    def download(cls) -> WikidatedDataset:
+        raise NotImplementedError()  # TODO
+
+    @classmethod
+    def load(cls, dataset_dir: Path) -> WikidatedDataset:
+        _LOGGER.debug(f"Loading dataset {dataset_dir.name}.")
+        entity_streams = WikidatedEntityStreams.load(dataset_dir)
+        sorted_entity_streams = WikidatedSortedEntityStreams.load(dataset_dir)
+        global_stream = WikidatedGlobalStream.load(dataset_dir)
+        _LOGGER.debug(f"Done loading dataset {dataset_dir.name}.")
+        return WikidatedDataset(entity_streams, sorted_entity_streams, global_stream)
+
+    @classmethod
+    def build(
+        cls,
         dataset_dir: Path,
         jars_dir: Path,
         wikidata_dump: WikidataDump,
-    ) -> None:
-        self._dataset_dir = dataset_dir
-        self._wikidata_dump = wikidata_dump
-        self.entity_streams: Final = WikidatedEntityStreams(dataset_dir, jars_dir)
-        self.sorted_entity_streams: Final = WikidatedSortedEntityStreams(dataset_dir)
-        self.global_stream: Final = WikidatedGlobalStream(dataset_dir)
-
-    def download(self) -> None:
-        raise NotImplementedError()  # TODO
-
-    def load(self) -> None:
-        _LOGGER.debug(f"Loading dataset {self._dataset_dir.name}.")
-        self.entity_streams.load()
-        self.sorted_entity_streams.load()
-        self.global_stream.load()
-        _LOGGER.debug(f"Done loading dataset {self._dataset_dir.name}.")
-
-    def build(self, *, max_workers: Optional[int] = 4) -> None:
-        _LOGGER.info(
-            f"Building dataset {self._dataset_dir.name} with {max_workers} workers."
-        )
-        self.entity_streams.build(
-            self._wikidata_dump.sites_table,
-            self._wikidata_dump.pages_meta_history,
+        *,
+        max_workers: Optional[int] = 4,
+    ) -> WikidatedDataset:
+        _LOGGER.info(f"Building dataset {dataset_dir.name} with {max_workers} workers.")
+        entity_streams = WikidatedEntityStreams.build(
+            dataset_dir,
+            jars_dir,
+            wikidata_dump.sites_table,
+            wikidata_dump.pages_meta_history,
             max_workers=max_workers,
         )
-        self.sorted_entity_streams.build(self.entity_streams)
-        self.global_stream.build(
-            self.sorted_entity_streams, self._wikidata_dump.version
+        sorted_entity_streams = WikidatedSortedEntityStreams.build(
+            dataset_dir, entity_streams
         )
-        _LOGGER.info(f"Done building dataset {self._dataset_dir.name}.")
+        global_stream = WikidatedGlobalStream.build(
+            dataset_dir, sorted_entity_streams, wikidata_dump.version
+        )
+        _LOGGER.info(f"Done building dataset {dataset_dir.name}.")
+        return WikidatedDataset(entity_streams, sorted_entity_streams, global_stream)
 
     # TODO: rethink what kind of accessor methods might be used here in practice.
