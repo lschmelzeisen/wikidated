@@ -59,10 +59,10 @@ format: format-licenseheaders format-isort format-black ##- Auto format all code
 .PHONY: format
 
 format-licenseheaders: ##- Prepend license headers to all code files.
-	@poetry run licenseheaders --tmpl LICENSE.header --years 2021 --owner "Lukas Schmelzeisen" --dir scripts
-	@poetry run licenseheaders --tmpl LICENSE.header --years 2021 --owner "Lukas Schmelzeisen" --dir src
-	@poetry run licenseheaders --tmpl LICENSE.header --years 2021 --owner "Lukas Schmelzeisen" --dir tests
-	@poetry run licenseheaders --tmpl LICENSE.header --years 2021 --owner "Lukas Schmelzeisen" -f noxfile.py
+	@poetry run licenseheaders --tmpl LICENSE.header --years 2021-2022 --owner "Lukas Schmelzeisen" --dir scripts
+	@poetry run licenseheaders --tmpl LICENSE.header --years 2021-2022 --owner "Lukas Schmelzeisen" --dir src
+	@poetry run licenseheaders --tmpl LICENSE.header --years 2021-2022 --owner "Lukas Schmelzeisen" --dir tests
+	@poetry run licenseheaders --tmpl LICENSE.header --years 2021-2022 --owner "Lukas Schmelzeisen" -f noxfile.py
 .PHONY: format-licenseheaders
 
 format-isort: ##- Sort all imports.
