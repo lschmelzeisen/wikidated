@@ -116,12 +116,13 @@ class WikidatedGlobalStreamFile:
     @classmethod
     def build(
         cls, dataset_dir: Path, month: date, revisions: Iterator[WikidatedRevision]
-    ) -> Tuple[Optional[WikidatedGlobalStreamFile], Iterator[WikidatedRevision]]:
+    ) -> Tuple[WikidatedGlobalStreamFile, Iterator[WikidatedRevision]]:
         if month.day != 1:
             raise ValueError("month must be a date with day=1.")
 
-        if cls._skip_existing_file(dataset_dir, month, revisions):
-            return None, revisions
+        existing_file = cls._check_existing_file(dataset_dir, month, revisions)
+        if existing_file:
+            return existing_file, revisions
 
         _LOGGER.debug(
             f"Building global stream file {cls.archive_path_glob(dataset_dir, month)}."
@@ -137,53 +138,17 @@ class WikidatedGlobalStreamFile:
         for day in days_between_dates(month, next_month(month) - timedelta(days=1)):
             if day < _WIKIDATA_INCEPTION_DATE:
                 continue
-            tmp_file = tmp_dir / f"tmp.{day:%4Y%2m%2d}.jsonl"
-            revision_ids_of_day: Optional[range] = None
-            with tmp_file.open("w", encoding="UTF-8") as fd:
-                for revision in revisions:
-                    revision_date = revision.timestamp.date()
-                    if revision_date < day:
-                        # The revisions stream is sorted by ascending revision IDs and
-                        # revision IDs are increasing over time. However, in rare cases
-                        # a revision's timestamp can lie a few seconds before that of a
-                        # revision with a lower ID. If that happens on date boundaries
-                        # we run into this rare case.
-                        _LOGGER.warning(
-                            f"Revision {revision.revision_id} authored on "
-                            f"{revision.timestamp} has revision ID higher than "
-                            f"revisions authored on {day}. Including it with revisions "
-                            f"of that day."
-                        )
-                    elif revision_date > day:
-                        revisions = chain((revision,), revisions)
-                        break
 
-                    revision_ids_of_day = range(
-                        revision.revision_id
-                        if revision_ids_of_day is None
-                        else revision_ids_of_day.start,
-                        revision.revision_id + 1,
-                    )
-                    fd.write(revision.json() + "\n")
+            revision_ids_of_day, revisions = cls._write_revisions_of_day(
+                dataset_dir, tmp_dir, day, revisions
+            )
 
-            if revision_ids_of_day is None:
-                # No revisions for this day existed.
-                _LOGGER.warning(
-                    f"Did not find any revisions for day {day:%Y%m%d} in global stream "
-                    f"file {cls.archive_path_glob(dataset_dir, month)}."
+            if revision_ids_of_day:
+                revision_ids = (
+                    revision_ids_of_day
+                    if revision_ids is None
+                    else range(revision_ids.start, revision_ids_of_day.stop)
                 )
-                tmp_file.unlink()
-                continue
-
-            revision_ids = (
-                revision_ids_of_day
-                if revision_ids is None
-                else range(revision_ids.start, revision_ids_of_day.stop)
-            )
-
-            tmp_file.rename(
-                tmp_dir / cls._make_archive_component_path(day, revision_ids_of_day)
-            )
 
         if revision_ids is None:
             # This rare case occurs when there are no revisions for the given month.
@@ -191,8 +156,7 @@ class WikidatedGlobalStreamFile:
                 "Did not find any revisions for global stream file "
                 f"{cls.archive_path_glob(dataset_dir, month)}."
             )
-            rmtree(tmp_dir)
-            return None, revisions
+            revision_ids = range(0, 0)
 
         archive_path = cls._make_archive_path(dataset_dir, month, revision_ids)
 
@@ -204,25 +168,80 @@ class WikidatedGlobalStreamFile:
         return WikidatedGlobalStreamFile(archive_path, month, revision_ids), revisions
 
     @classmethod
-    def _skip_existing_file(
+    def _write_revisions_of_day(
+        cls,
+        dataset_dir: Path,
+        tmp_dir: Path,
+        day: date,
+        revisions: Iterator[WikidatedRevision],
+    ) -> Tuple[Optional[range], Iterator[WikidatedRevision]]:
+        tmp_file = tmp_dir / f"tmp.{day:%4Y%2m%2d}.jsonl"
+        revision_ids_of_day: Optional[range] = None
+        with tmp_file.open("w", encoding="UTF-8") as fd:
+            for revision in revisions:
+                revision_date = revision.timestamp.date()
+                if revision_date < day:
+                    # The revisions stream is sorted by ascending revision IDs and
+                    # revision IDs are increasing over time. However, in rare cases
+                    # a revision's timestamp can lie a few seconds before that of a
+                    # revision with a lower ID. If that happens on date boundaries
+                    # we run into this rare case.
+                    _LOGGER.warning(
+                        f"Revision {revision.revision_id} authored on "
+                        f"{revision.timestamp} has revision ID higher than "
+                        f"revisions authored on {day}. Including it with revisions "
+                        f"of that day."
+                    )
+                elif revision_date > day:
+                    revisions = chain((revision,), revisions)
+                    break
+
+                revision_ids_of_day = range(
+                    revision.revision_id
+                    if revision_ids_of_day is None
+                    else revision_ids_of_day.start,
+                    revision.revision_id + 1,
+                )
+                fd.write(revision.json() + "\n")
+
+        if revision_ids_of_day is None:
+            # No revisions for this day existed.
+            _LOGGER.warning(
+                f"Did not find any revisions for day {day:%Y%m%d} in global stream "
+                f"file {cls.archive_path_glob(dataset_dir, day.replace(day=1))}."
+            )
+            tmp_file.unlink()
+        else:
+            tmp_file.rename(
+                tmp_dir / cls._make_archive_component_path(day, revision_ids_of_day)
+            )
+
+        return revision_ids_of_day, revisions
+
+    @classmethod
+    def _check_existing_file(
         cls, dataset_dir: Path, month: date, revisions: Iterator[WikidatedRevision]
-    ) -> bool:
+    ) -> Optional[WikidatedGlobalStreamFile]:
         try:
             archive_path = next(
                 dataset_dir.glob(cls.archive_path_glob(dataset_dir, month))
             )
-            _LOGGER.debug(
-                f"Global stream file '{archive_path}' already exists, skipping "
-                f"building but draining revisions iterator."
-            )
-            next_month_ = next_month(month)
-            for _ in takewhile(
-                lambda revision: revision.timestamp.date() < next_month_, revisions
-            ):
-                pass
-            return True
         except StopIteration:
-            return False
+            return None
+
+        _, month_, revision_ids = cls._parse_archive_path(archive_path)
+        assert month == month_
+
+        _LOGGER.debug(
+            f"Global stream file '{archive_path}' already exists, skipping building "
+            f"but draining revisions iterator."
+        )
+        next_month_ = next_month(month)
+        for _ in takewhile(
+            lambda revision: revision.timestamp.date() < next_month_, revisions
+        ):
+            pass
+        return WikidatedGlobalStreamFile(archive_path, month, revision_ids)
 
 
 class WikidatedGlobalStream:
@@ -249,15 +268,15 @@ class WikidatedGlobalStream:
 
     def build(
         self,
-        sorted_entity_streams_manager: WikidatedSortedEntityStreams,
+        sorted_entity_streams: WikidatedSortedEntityStreams,
         wikidata_dump_version: date,
     ) -> None:
         _LOGGER.debug(f"Building global stream for dataset {self._dataset_dir.name}.")
 
         sorted_entity_streams_iters = [
-            sorted_entity_streams.iter_revisions()
-            for sorted_entity_streams in (
-                sorted_entity_streams_manager._files_by_page_ids.values()
+            sorted_entity_streams_file.iter_revisions()
+            for sorted_entity_streams_file in (
+                sorted_entity_streams._files_by_page_ids.values()
             )
         ]
         sorted_revisions = iter(
@@ -277,9 +296,8 @@ class WikidatedGlobalStream:
             file, sorted_revisions = WikidatedGlobalStreamFile.build(
                 self._dataset_dir, month, sorted_revisions
             )
-            if file:
-                self._files_by_months[file.months] = file
-                self._files_by_revision_ids[file.revision_ids] = file
+            self._files_by_months[file.months] = file
+            self._files_by_revision_ids[file.revision_ids] = file
         try:
             revision = next(sorted_revisions)
             raise Exception(

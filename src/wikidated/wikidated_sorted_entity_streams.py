@@ -126,13 +126,13 @@ class WikidatedSortedEntityStreams:
             f"Done loading sorted entity streams for dataset {self._dataset_dir.name}."
         )
 
-    def build(self, entity_streams_manager: WikidatedEntityStreams) -> None:
+    def build(self, entity_streams: WikidatedEntityStreams) -> None:
         _LOGGER.debug(
             f"Building sorted entity streams for dataset {self._dataset_dir.name}."
         )
         self._files_by_page_ids = RangeMap[WikidatedSortedEntityStreamsFile]()
         for entity_streams_file in tqdm(
-            entity_streams_manager._files_by_page_ids.values(),
+            entity_streams._files_by_page_ids.values(),
             desc="Sorted Entity Streams",
         ):
             file = WikidatedSortedEntityStreamsFile.build(
