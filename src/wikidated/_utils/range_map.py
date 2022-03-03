@@ -16,6 +16,7 @@
 
 from typing import (
     AbstractSet,
+    Any,
     Generic,
     Iterator,
     MutableMapping,
@@ -24,6 +25,7 @@ from typing import (
     TypeVar,
     Union,
     cast,
+    overload,
 )
 
 _T_Value = TypeVar("_T_Value")
@@ -41,6 +43,18 @@ class RangeMap(
 
     def __bool__(self) -> bool:
         return bool(self._data)
+
+    @overload
+    def __contains__(self, key: int) -> bool:
+        ...
+
+    @overload
+    def __contains__(self, key: range) -> bool:
+        ...
+
+    @overload
+    def __contains__(self, key: object) -> Any:  # NoReturn doesn't work.
+        ...
 
     def __contains__(self, key: object) -> bool:
         try:
@@ -88,8 +102,24 @@ class RangeMap(
 
         self._data.insert(i + 1, (key, value))
 
-    def __getitem__(self, key: object) -> _T_Value:
-        # O(log n).
+    @overload
+    def __getitem__(self, key: int) -> _T_Value:
+        ...
+
+    @overload
+    def __getitem__(self, key: range) -> _T_Value:
+        ...
+
+    @overload
+    def __getitem__(self, key: slice) -> Iterator[_T_Value]:
+        ...
+
+    @overload
+    def __getitem__(self, key: object) -> Any:  # NoReturn doesn't work.
+        ...
+
+    def __getitem__(self, key: object) -> Union[_T_Value, Iterator[_T_Value]]:
+        # O(log n) for non-slice lookup.
 
         if isinstance(key, int):
             i = self._index(key)
@@ -99,6 +129,15 @@ class RangeMap(
             i = self._index(key.start)
             if i != -1 and key == self._data[i][0]:
                 return self._data[i][1]
+        elif isinstance(key, slice):
+            # TODO: could implement this more efficiently (i.e., without retrying every
+            #  item in the slice even though it might yield a value already returned).
+            values = set()
+            for k in range(key.start, key.stop, key.step):
+                v = self[k]
+                if v not in values:
+                    values.add(v)
+                    yield v
         else:
             raise TypeError("key must either be an int or a range.")
         raise KeyError(key)

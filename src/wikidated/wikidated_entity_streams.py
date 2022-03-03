@@ -21,7 +21,7 @@ from itertools import chain, groupby
 from logging import getLogger
 from pathlib import Path
 from shutil import rmtree
-from typing import Iterator, Mapping, MutableSet, Optional, Tuple
+from typing import Any, Iterator, Mapping, MutableSet, Optional, Tuple, Union, overload
 
 from typing_extensions import Final
 
@@ -245,11 +245,25 @@ class WikidatedEntityStreams:
     def __iter__(self) -> Iterator[WikidatedEntityStreamsFile]:
         return iter(self._files_by_page_ids.values())
 
-    def __getitem__(self, item: object) -> WikidatedEntityStreamsFile:
-        if isinstance(item, int):
-            return self._files_by_page_ids[item]
+    @overload
+    def __getitem__(self, key: int) -> WikidatedEntityStreamsFile:
+        ...
+
+    @overload
+    def __getitem__(self, key: slice) -> Iterator[WikidatedEntityStreamsFile]:
+        ...
+
+    @overload
+    def __getitem__(self, key: object) -> Any:  # NoReturn doesn't work here.
+        ...
+
+    def __getitem__(
+        self, key: object
+    ) -> Union[WikidatedEntityStreamsFile, Iterator[WikidatedEntityStreamsFile]]:
+        if isinstance(key, int) or isinstance(key, slice):
+            return self._files_by_page_ids[key]
         else:
-            raise TypeError("item needs to be of type int.")
+            raise TypeError("key needs to be of type int.")
 
     @classmethod
     def load(cls, dataset_dir: Path) -> WikidatedEntityStreams:

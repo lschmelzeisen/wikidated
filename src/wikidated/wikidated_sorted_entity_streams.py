@@ -19,7 +19,7 @@ from __future__ import annotations
 import re
 from logging import getLogger
 from pathlib import Path
-from typing import Iterator, Tuple
+from typing import Any, Iterator, Tuple, Union, overload
 
 from tqdm import tqdm  # type: ignore
 from typing_extensions import Final
@@ -115,11 +115,27 @@ class WikidatedSortedEntityStreams:
     def __iter__(self) -> Iterator[WikidatedSortedEntityStreamsFile]:
         return iter(self._files_by_page_ids.values())
 
-    def __getitem__(self, item: object) -> WikidatedSortedEntityStreamsFile:
-        if isinstance(item, int):
-            return self._files_by_page_ids[item]
+    @overload
+    def __getitem__(self, key: int) -> WikidatedSortedEntityStreamsFile:
+        ...
+
+    @overload
+    def __getitem__(self, key: slice) -> Iterator[WikidatedSortedEntityStreamsFile]:
+        ...
+
+    @overload
+    def __getitem__(self, key: object) -> Any:  # NoReturn doesn't work here.
+        ...
+
+    def __getitem__(
+        self, key: object
+    ) -> Union[
+        WikidatedSortedEntityStreamsFile, Iterator[WikidatedSortedEntityStreamsFile]
+    ]:
+        if isinstance(key, int) or isinstance(key, slice):
+            return self._files_by_page_ids[key]
         else:
-            raise TypeError("item needs to be of type int.")
+            raise TypeError("key needs to be of type int.")
 
     @classmethod
     def load(cls, dataset_dir: Path) -> WikidatedSortedEntityStreams:

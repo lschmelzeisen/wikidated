@@ -23,7 +23,7 @@ from itertools import chain, takewhile
 from logging import getLogger
 from pathlib import Path
 from shutil import rmtree
-from typing import Iterator, Optional, Tuple
+from typing import Any, Iterator, Optional, Tuple, Union, overload
 
 from tqdm import tqdm  # type: ignore
 from typing_extensions import Final
@@ -259,13 +259,36 @@ class WikidatedGlobalStream:
     def __iter__(self) -> Iterator[WikidatedGlobalStreamFile]:
         return iter(self._files_by_months.values())
 
-    def __getitem__(self, item: object) -> WikidatedGlobalStreamFile:
-        if isinstance(item, date):
-            return self._files_by_months[item.toordinal()]
-        elif isinstance(item, int):
-            return self._files_by_revision_ids[item]
+    @overload
+    def __getitem__(self, key: int) -> WikidatedGlobalStreamFile:
+        ...
+
+    @overload
+    def __getitem__(self, key: slice) -> Iterator[WikidatedGlobalStreamFile]:
+        ...
+
+    @overload
+    def __getitem__(self, key: object) -> Any:  # NoReturn doesn't work here.
+        ...
+
+    def __getitem__(
+        self, key: object
+    ) -> Union[WikidatedGlobalStreamFile, Iterator[WikidatedGlobalStreamFile]]:
+        if isinstance(key, date):
+            return self._files_by_months[key.toordinal()]
+        elif isinstance(key, int):
+            return self._files_by_revision_ids[key]
+        elif isinstance(key, slice):
+            if isinstance(key.start, date) and isinstance(key.stop, date):
+                return self._files_by_months[
+                    slice(key.start.toordinal(), key.stop.toordinal(), key.step)
+                ]
+            elif isinstance(key.start, int) and isinstance(key.stop, int):
+                return self._files_by_revision_ids[key]
+            else:
+                raise TypeError("if key is a slice it must be over dates or ints.")
         else:
-            raise TypeError("item needs to be of type date or int.")
+            raise TypeError("key needs to be of type date or int.")
 
     @classmethod
     def load(cls, dataset_dir: Path) -> WikidatedGlobalStream:
