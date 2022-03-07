@@ -16,15 +16,17 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from logging import getLogger
 from pathlib import Path
-from typing import Optional
+from typing import Iterator, Optional
 
 from typing_extensions import Final
 
 from wikidated.wikidata import WikidataDump
 from wikidated.wikidated_entity_streams import WikidatedEntityStreams
 from wikidated.wikidated_global_stream import WikidatedGlobalStream
+from wikidated.wikidated_revision import WikidatedRevision
 from wikidated.wikidated_sorted_entity_streams import WikidatedSortedEntityStreams
 
 _LOGGER = getLogger(__name__)
@@ -33,14 +35,13 @@ _LOGGER = getLogger(__name__)
 class WikidatedDataset:
     def __init__(
         self,
-        entity_streams: Optional[WikidatedEntityStreams],
-        sorted_entity_streams: Optional[WikidatedSortedEntityStreams],
-        global_stream: Optional[WikidatedGlobalStream],
+        entity_streams: WikidatedEntityStreams,
+        sorted_entity_streams: WikidatedSortedEntityStreams,
+        global_stream: WikidatedGlobalStream,
     ) -> None:
         self.entity_streams: Final = entity_streams
         self.sorted_entity_streams: Final = sorted_entity_streams
         self.global_stream: Final = global_stream
-        pass
 
     @classmethod
     def download(cls) -> WikidatedDataset:
@@ -81,4 +82,50 @@ class WikidatedDataset:
         _LOGGER.info(f"Done building dataset {dataset_dir.name}.")
         return WikidatedDataset(entity_streams, sorted_entity_streams, global_stream)
 
-    # TODO: rethink what kind of accessor methods might be used here in practice.
+    def iter_revisions(
+        self,
+        page_id: Optional[int] = None,
+        *,
+        min_revision_id: Optional[int] = None,
+        max_revision_id: Optional[int] = None,
+        min_timestamp: Optional[datetime] = None,
+        max_timestamp: Optional[datetime] = None,
+    ) -> Iterator[WikidatedRevision]:
+        if page_id is not None:
+            try:
+                entity_streams_file = self.entity_streams[page_id]
+                yield from entity_streams_file.iter_revisions(
+                    page_id,
+                    min_revision_id=min_revision_id,
+                    max_revision_id=max_revision_id,
+                    min_timestamp=min_timestamp,
+                    max_timestamp=max_timestamp,
+                )
+            except KeyError:
+                yield from ()
+        else:
+            global_stream_files_by_revision_ids = self.global_stream[
+                min_revision_id:max_revision_id
+            ]
+            # We ignore typing here because for mypy slice indices must be integers.
+            global_stream_files_by_timestamps = self.global_stream[
+                (min_timestamp and min_timestamp.date()) : (  # type: ignore
+                    max_timestamp and max_timestamp.date()  # type: ignore
+                )
+            ]
+            global_stream_files = sorted(
+                set(global_stream_files_by_revision_ids)
+                & set(global_stream_files_by_timestamps),
+                key=lambda f: f.month,
+            )
+            for global_stream_file in global_stream_files:
+                yield from global_stream_file.iter_revisions(
+                    min_revision_id=min_revision_id,
+                    max_revision_id=max_revision_id,
+                    min_timestamp=min_timestamp,
+                    max_timestamp=max_timestamp,
+                )
+
+    def iter_page_ids(self) -> Iterator[int]:
+        for entity_streams_file in self.entity_streams:
+            yield from entity_streams_file.iter_page_ids()

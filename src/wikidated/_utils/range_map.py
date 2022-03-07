@@ -18,9 +18,12 @@ from typing import (
     AbstractSet,
     Any,
     Generic,
+    Iterable,
     Iterator,
+    Mapping,
     MutableMapping,
     MutableSequence,
+    Optional,
     Tuple,
     TypeVar,
     Union,
@@ -35,8 +38,20 @@ class RangeMap(
     Generic[_T_Value],
     MutableMapping[Union[int, range], _T_Value],
 ):
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        iterable: Optional[
+            Union[Mapping[range, _T_Value], Iterable[Tuple[range, _T_Value]]]
+        ] = None,
+    ) -> None:
         self._data: MutableSequence[Tuple[range, _T_Value]] = []
+        if iterable is not None:
+            if isinstance(iterable, Mapping):
+                for key, value in iterable.items():
+                    self[key] = value
+            else:
+                for key, value in iterable:
+                    self[key] = value
 
     def __len__(self) -> int:
         return len(self._data)
@@ -111,14 +126,14 @@ class RangeMap(
         ...
 
     @overload
-    def __getitem__(self, key: slice) -> Iterator[_T_Value]:
+    def __getitem__(self, key: slice) -> Iterable[_T_Value]:
         ...
 
     @overload
     def __getitem__(self, key: object) -> Any:  # NoReturn doesn't work.
         ...
 
-    def __getitem__(self, key: object) -> Union[_T_Value, Iterator[_T_Value]]:
+    def __getitem__(self, key: object) -> Union[_T_Value, Iterable[_T_Value]]:
         # O(log n) for non-slice lookup.
 
         if isinstance(key, int):
@@ -130,16 +145,18 @@ class RangeMap(
             if i != -1 and key == self._data[i][0]:
                 return self._data[i][1]
         elif isinstance(key, slice):
-            # TODO: could implement this more efficiently (i.e., without retrying every
-            #  item in the slice even though it might yield a value already returned).
-            values = set()
-            for k in range(key.start, key.stop, key.step):
-                v = self[k]
-                if v not in values:
-                    values.add(v)
-                    yield v
+            if key.step is not None and key.step != 1:
+                raise ValueError("Slices with steps != 1 are not supported.")
+            start = key.start or self._data[0][0].start
+            stop = key.stop or self._data[-1][0].stop
+            results = []
+            for i in range(max(self._index(start), 0), len(self)):
+                if self._data[i][0].start >= stop:
+                    break
+                results.append(self._data[i][1])
+            return results
         else:
-            raise TypeError("key must either be an int or a range.")
+            raise TypeError("key must either be an int, a range, or a slice.")
         raise KeyError(key)
 
     def __delitem__(self, key: object) -> None:

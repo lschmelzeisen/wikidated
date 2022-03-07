@@ -17,11 +17,23 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime, timezone
 from itertools import chain, groupby
 from logging import getLogger
 from pathlib import Path
 from shutil import rmtree
-from typing import Any, Iterator, Mapping, MutableSet, Optional, Tuple, Union, overload
+from sys import maxsize
+from typing import (
+    Any,
+    Iterable,
+    Iterator,
+    Mapping,
+    MutableSet,
+    Optional,
+    Tuple,
+    Union,
+    overload,
+)
 
 from typing_extensions import Final
 
@@ -47,22 +59,52 @@ _LOGGER = getLogger(__name__)
 
 class WikidatedEntityStreamsFile:
     def __init__(self, archive_path: Path, page_ids: range) -> None:
+        if not archive_path.exists():
+            raise FileNotFoundError(archive_path)
         self.archive_path: Final = archive_path
         self.page_ids: Final = page_ids
 
     def iter_revisions(
-        self, page_id: Optional[int] = None
+        self,
+        page_id: Optional[int] = None,
+        *,
+        min_revision_id: Optional[int] = None,
+        max_revision_id: Optional[int] = None,
+        min_timestamp: Optional[datetime] = None,
+        max_timestamp: Optional[datetime] = None,
     ) -> Iterator[WikidatedRevision]:
-        assert self.archive_path.exists()
         archive = SevenZipArchive(self.archive_path)
+        min_revision_id_ = min_revision_id or -maxsize
+        max_revision_id_ = max_revision_id or maxsize
+        min_timestamp_ = min_timestamp or datetime.min
+        max_timestamp_ = max_timestamp or datetime.max
+        if not min_timestamp_.tzinfo:
+            min_timestamp_ = min_timestamp_.replace(tzinfo=timezone.utc)
+        if not max_timestamp_.tzinfo:
+            max_timestamp_ = max_timestamp_.replace(tzinfo=timezone.utc)
         with archive.read(
             self._make_archive_component_path(page_id) if page_id else None
         ) as fd:
             for line in fd:
-                yield WikidatedRevision.parse_raw(line)
+                revision = WikidatedRevision.parse_raw(line)
+                if (
+                    revision.revision_id < min_revision_id_
+                    or revision.timestamp < min_timestamp_
+                ):
+                    continue
+                if (
+                    revision.revision_id > max_revision_id_
+                    or revision.timestamp > max_timestamp_
+                ):
+                    if page_id is not None:
+                        break
+                    else:
+                        # Can not break here, since the revisions of the next entity
+                        # will likely have lower revision IDs and timestamps again.
+                        continue
+                yield revision
 
     def iter_page_ids(self) -> Iterator[int]:
-        assert self.archive_path.exists()
         archive = SevenZipArchive(self.archive_path)
         for component_file_name in archive.iter_file_names():
             yield self._parse_archive_component_path(component_file_name)
@@ -106,7 +148,6 @@ class WikidatedEntityStreamsFile:
 
     @classmethod
     def load(cls, path: Path) -> WikidatedEntityStreamsFile:
-        assert path.exists()
         _, page_ids = cls._parse_archive_path(path)
         return WikidatedEntityStreamsFile(path, page_ids)
 
@@ -250,7 +291,7 @@ class WikidatedEntityStreams:
         ...
 
     @overload
-    def __getitem__(self, key: slice) -> Iterator[WikidatedEntityStreamsFile]:
+    def __getitem__(self, key: slice) -> Iterable[WikidatedEntityStreamsFile]:
         ...
 
     @overload
@@ -259,7 +300,7 @@ class WikidatedEntityStreams:
 
     def __getitem__(
         self, key: object
-    ) -> Union[WikidatedEntityStreamsFile, Iterator[WikidatedEntityStreamsFile]]:
+    ) -> Union[WikidatedEntityStreamsFile, Iterable[WikidatedEntityStreamsFile]]:
         if isinstance(key, int) or isinstance(key, slice):
             return self._files_by_page_ids[key]
         else:

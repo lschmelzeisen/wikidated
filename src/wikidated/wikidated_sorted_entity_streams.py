@@ -17,9 +17,11 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import Path
-from typing import Any, Iterator, Tuple, Union, overload
+from sys import maxsize
+from typing import Any, Iterable, Iterator, Optional, Tuple, Union, overload
 
 from tqdm import tqdm  # type: ignore
 from typing_extensions import Final
@@ -36,15 +38,42 @@ _LOGGER = getLogger(__name__)
 
 class WikidatedSortedEntityStreamsFile:
     def __init__(self, archive_path: Path, page_ids: range) -> None:
-        self.path: Final = archive_path
+        if not archive_path.exists():
+            raise FileNotFoundError(archive_path)
+        self.archive_path: Final = archive_path
         self.page_ids: Final = page_ids
 
-    def iter_revisions(self) -> Iterator[WikidatedRevision]:
-        assert self.path.exists()
-        archive = SevenZipArchive(self.path)
+    def iter_revisions(
+        self,
+        *,
+        min_revision_id: Optional[int] = None,
+        max_revision_id: Optional[int] = None,
+        min_timestamp: Optional[datetime] = None,
+        max_timestamp: Optional[datetime] = None,
+    ) -> Iterator[WikidatedRevision]:
+        archive = SevenZipArchive(self.archive_path)
+        min_revision_id_ = min_revision_id or -maxsize
+        max_revision_id_ = max_revision_id or maxsize
+        min_timestamp_ = min_timestamp or datetime.min
+        max_timestamp_ = max_timestamp or datetime.max
+        if not min_timestamp_.tzinfo:
+            min_timestamp_ = min_timestamp_.replace(tzinfo=timezone.utc)
+        if not max_timestamp_.tzinfo:
+            max_timestamp_ = max_timestamp_.replace(tzinfo=timezone.utc)
         with archive.read() as fd:
             for line in fd:
-                yield WikidatedRevision.parse_raw(line)
+                revision = WikidatedRevision.parse_raw(line)
+                if (
+                    revision.revision_id < min_revision_id_
+                    or revision.timestamp < min_timestamp_
+                ):
+                    continue
+                if (
+                    revision.revision_id > max_revision_id_
+                    or revision.timestamp > max_timestamp_
+                ):
+                    break
+                yield revision
 
     @classmethod
     def archive_path_glob(cls, dataset_dir: Path) -> str:
@@ -73,7 +102,6 @@ class WikidatedSortedEntityStreamsFile:
 
     @classmethod
     def load(cls, path: Path) -> WikidatedSortedEntityStreamsFile:
-        assert path.exists()
         _, page_ids = cls._parse_archive_path(path)
         return WikidatedSortedEntityStreamsFile(path, page_ids)
 
@@ -120,7 +148,7 @@ class WikidatedSortedEntityStreams:
         ...
 
     @overload
-    def __getitem__(self, key: slice) -> Iterator[WikidatedSortedEntityStreamsFile]:
+    def __getitem__(self, key: slice) -> Iterable[WikidatedSortedEntityStreamsFile]:
         ...
 
     @overload
@@ -130,7 +158,7 @@ class WikidatedSortedEntityStreams:
     def __getitem__(
         self, key: object
     ) -> Union[
-        WikidatedSortedEntityStreamsFile, Iterator[WikidatedSortedEntityStreamsFile]
+        WikidatedSortedEntityStreamsFile, Iterable[WikidatedSortedEntityStreamsFile]
     ]:
         if isinstance(key, int) or isinstance(key, slice):
             return self._files_by_page_ids[key]

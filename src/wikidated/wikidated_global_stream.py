@@ -18,12 +18,13 @@ from __future__ import annotations
 
 import heapq
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from itertools import chain, takewhile
 from logging import getLogger
 from pathlib import Path
 from shutil import rmtree
-from typing import Any, Iterator, Optional, Tuple, Union, overload
+from sys import maxsize
+from typing import Any, Iterable, Iterator, Optional, Tuple, Union, overload
 
 from tqdm import tqdm  # type: ignore
 from typing_extensions import Final
@@ -44,6 +45,8 @@ _WIKIDATA_INCEPTION_DATE = date(year=2012, month=10, day=29)
 
 class WikidatedGlobalStreamFile:
     def __init__(self, archive_path: Path, month: date, revision_ids: range) -> None:
+        if not archive_path.exists():
+            raise FileNotFoundError(archive_path)
         self.archive_path: Final = archive_path
         self.month: Final = month
         self.revision_ids: Final = revision_ids
@@ -51,6 +54,38 @@ class WikidatedGlobalStreamFile:
     @property
     def months(self) -> range:
         return range(self.month.toordinal(), next_month(self.month).toordinal())
+
+    def iter_revisions(
+        self,
+        *,
+        min_revision_id: Optional[int] = None,
+        max_revision_id: Optional[int] = None,
+        min_timestamp: Optional[datetime] = None,
+        max_timestamp: Optional[datetime] = None,
+    ) -> Iterator[WikidatedRevision]:
+        archive = SevenZipArchive(self.archive_path)
+        min_revision_id_ = min_revision_id or -maxsize
+        max_revision_id_ = max_revision_id or maxsize
+        min_timestamp_ = min_timestamp or datetime.min
+        max_timestamp_ = max_timestamp or datetime.max
+        if not min_timestamp_.tzinfo:
+            min_timestamp_ = min_timestamp_.replace(tzinfo=timezone.utc)
+        if not max_timestamp_.tzinfo:
+            max_timestamp_ = max_timestamp_.replace(tzinfo=timezone.utc)
+        with archive.read() as fd:
+            for line in fd:
+                revision = WikidatedRevision.parse_raw(line)
+                if (
+                    revision.revision_id < min_revision_id_
+                    or revision.timestamp < min_timestamp_
+                ):
+                    continue
+                if (
+                    revision.revision_id > max_revision_id_
+                    or revision.timestamp > max_timestamp_
+                ):
+                    break
+                yield revision
 
     @classmethod
     def archive_path_glob(cls, dataset_dir: Path, month: Optional[date] = None) -> str:
@@ -109,7 +144,6 @@ class WikidatedGlobalStreamFile:
 
     @classmethod
     def load(cls, path: Path) -> WikidatedGlobalStreamFile:
-        assert path.exists()
         _, month, revision_ids = cls._parse_archive_path(path)
         return WikidatedGlobalStreamFile(path, month, revision_ids)
 
@@ -264,7 +298,7 @@ class WikidatedGlobalStream:
         ...
 
     @overload
-    def __getitem__(self, key: slice) -> Iterator[WikidatedGlobalStreamFile]:
+    def __getitem__(self, key: slice) -> Iterable[WikidatedGlobalStreamFile]:
         ...
 
     @overload
@@ -273,17 +307,23 @@ class WikidatedGlobalStream:
 
     def __getitem__(
         self, key: object
-    ) -> Union[WikidatedGlobalStreamFile, Iterator[WikidatedGlobalStreamFile]]:
+    ) -> Union[WikidatedGlobalStreamFile, Iterable[WikidatedGlobalStreamFile]]:
         if isinstance(key, date):
             return self._files_by_months[key.toordinal()]
         elif isinstance(key, int):
             return self._files_by_revision_ids[key]
         elif isinstance(key, slice):
-            if isinstance(key.start, date) and isinstance(key.stop, date):
+            if key == slice(None):
+                return self._files_by_revision_ids[:]
+            elif isinstance(key.start, date) or isinstance(key.stop, date):
                 return self._files_by_months[
-                    slice(key.start.toordinal(), key.stop.toordinal(), key.step)
+                    slice(
+                        key.start and key.start.toordinal(),
+                        key.stop and key.stop.toordinal(),
+                        key.step,
+                    )
                 ]
-            elif isinstance(key.start, int) and isinstance(key.stop, int):
+            elif isinstance(key.start, int) or isinstance(key.stop, int):
                 return self._files_by_revision_ids[key]
             else:
                 raise TypeError("if key is a slice it must be over dates or ints.")
