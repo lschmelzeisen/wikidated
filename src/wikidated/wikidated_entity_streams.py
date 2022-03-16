@@ -106,8 +106,11 @@ class WikidatedEntityStreamsFile:
 
     def iter_page_ids(self) -> Iterator[int]:
         archive = SevenZipArchive(self.archive_path)
-        for component_file_name in archive.iter_file_names():
-            yield self._parse_archive_component_path(component_file_name)
+        for page_id, _component_file_name in sorted(
+            (WikidatedEntityStreamsFile._parse_archive_component_path(Path(c)), c)
+            for c in archive.iter_file_names()
+        ):
+            yield page_id
 
     @classmethod
     def archive_path_glob(cls, dataset_dir: Path) -> str:

@@ -129,7 +129,7 @@ class WikidatedGlobalStreamFile:
     def _parse_archive_component_path(cls, path: Path) -> Tuple[date, range]:
         match = re.match(
             r"d(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})"
-            r"-r(?P<min_revision_id>\d+)-r(?P<max_revision_id>\d+).7z$",
+            r"-r(?P<min_revision_id>\d+)-r(?P<max_revision_id>\d+).jsonl$",
             path.name,
         )
         assert match
@@ -292,6 +292,10 @@ class WikidatedGlobalStream:
 
     def __iter__(self) -> Iterator[WikidatedGlobalStreamFile]:
         return iter(self._files_by_months.values())
+
+    @overload
+    def __getitem__(self, key: date) -> WikidatedGlobalStreamFile:
+        ...
 
     @overload
     def __getitem__(self, key: int) -> WikidatedGlobalStreamFile:

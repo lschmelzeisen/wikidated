@@ -163,7 +163,7 @@ class WikidatedSortedEntityStreams:
         if isinstance(key, int) or isinstance(key, slice):
             return self._files_by_page_ids[key]
         else:
-            raise TypeError("key needs to be of type int.")
+            raise TypeError("key needs to be of type int or slice.")
 
     @classmethod
     def load(cls, dataset_dir: Path) -> WikidatedSortedEntityStreams:
