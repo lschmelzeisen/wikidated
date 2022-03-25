@@ -27,7 +27,6 @@ tests-report.html
 
 # Project specific generated files
 /src/*/_version.py
-tests/util/.requests_cache.jsonl
 
 # Notebooks that are just used for experimenting
 notebooks/xx-*
