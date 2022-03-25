@@ -125,6 +125,7 @@ pytest = { version = "^6.2", optional = true }
 pytest-cov = { version = "^3.0", optional = true }
 pytest-html = { version = "^3.1", optional = true }
 pydantic = "^1.8"
+pylatex = { version = "^1.4", optional = true }
 python = "^3.7"
 requests = "^2.26"
 tqdm = "^4.62"
@@ -151,6 +152,7 @@ vulture = "^2.3"
 [tool.poetry.extras]
 test = ["coverage", "pytest", "pytest-cov", "pytest-html"]
 build = ["JPype1"]
+analysis = ["pylatex"]
 
 [tools.pytest.ini_options]
 testpaths = ["tests"]

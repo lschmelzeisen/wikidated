@@ -33,8 +33,8 @@ from wikidated.wikidated_manager import WikidatedManager
 
 _LOGGER = getLogger(__name__)
 
-_EXPECTED_NUM_PAGES = 96_646_606
-_EXPECTED_NUM_REVISIONS = 1_411_008_075
+_EXPECTED_NUM_PAGES = 96_646_606  # TODO: expose directly?
+_EXPECTED_NUM_REVISIONS = 1_411_008_075  # TODO: expose directly?
 
 
 def _assert_entity_streams_file_structure(wikidated_dataset: WikidatedDataset) -> None:

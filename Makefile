@@ -7,7 +7,7 @@ help: ##- Show this help message.
 
 devinstall: ##- Install the project in editable mode with all test and dev dependencies (in a virtual environment).
 	@poetry env use 3.7
-	@poetry install -E test -E build
+	@poetry install -E test -E build -E analysis
 .PHONY: devinstall
 
 # ------------------------------------------------------------------------------
