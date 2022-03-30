@@ -128,6 +128,7 @@ pydantic = "^1.8"
 pylatex = { version = "^1.4", optional = true }
 python = "^3.7"
 requests = "^2.26"
+statsmodels = { version = "^0.13", optional = true }
 tqdm = "^4.62"
 typing-extensions = "^4.0"
 
@@ -152,7 +153,7 @@ vulture = "^2.3"
 [tool.poetry.extras]
 test = ["coverage", "pytest", "pytest-cov", "pytest-html"]
 build = ["JPype1"]
-analysis = ["pylatex"]
+analysis = ["pylatex", "statsmodels"]
 
 [tools.pytest.ini_options]
 testpaths = ["tests"]

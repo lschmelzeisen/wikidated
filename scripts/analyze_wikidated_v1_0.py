@@ -15,7 +15,8 @@
 #
 
 from datetime import date, datetime, timedelta
-from math import ceil
+from logging import getLogger
+from math import ceil, floor
 from pathlib import Path
 from sys import maxsize
 from typing import (
@@ -29,6 +30,7 @@ from typing import (
     Union,
 )
 
+import numpy as np
 from pylatex import (  # type: ignore
     Axis,
     Command,
@@ -41,6 +43,7 @@ from pylatex import (  # type: ignore
     TikZOptions,
     TikZScope,
 )
+from statsmodels.stats.weightstats import DescrStatsW  # type: ignore
 from tqdm import tqdm  # type: ignore
 
 from wikidated.wikidata import WikidataRdfTriple
@@ -50,6 +53,8 @@ from wikidated.wikidated_revision import WikidatedRevision
 _EXPECTED_NUM_REVISIONS = 1_411_008_075  # TODO: expose directly?
 _EXPECTED_NUM_REVISIONS = 977_557
 _DAY = timedelta(days=1)
+
+_LOGGER = getLogger(__name__)
 
 
 class StandaloneTikZ(TikZ):  # type: ignore
@@ -199,6 +204,39 @@ class FigureBase(Document):  # type: ignore
     def handle_revision(self, revision: WikidatedRevision) -> None:
         pass
 
+    def log_statistics(self) -> None:
+        _LOGGER.info(f"{self._camel_case_to_kebab_case(type(self).__name__)}:")
+
+    @classmethod
+    def _log_statistics_histogram(
+        cls, name: str, histogram: Mapping[int, float]
+    ) -> None:
+        _LOGGER.info(f"  {name} = {{")
+        for key, value in sorted(histogram.items()):
+            _LOGGER.info(f"    {key} = {value},")
+        _LOGGER.info("  }")
+
+        # Not setting `ddof=1` here to not use Bessel's correction since we are
+        # calculating the standard deviation over the entire population of all
+        # revisions and not just a sample of it.
+        statistics = DescrStatsW(
+            data=np.array(list(histogram.keys()), dtype=np.float32),
+            weights=np.array(list(histogram.values()), dtype=np.float32),
+        )
+
+        _LOGGER.info(f"  {name}_statistics = {{")
+        _LOGGER.info(f"    mean: {float(statistics.mean):.4f}")
+        _LOGGER.info(f"    std: {float(statistics.std):.4f}")
+        _LOGGER.info(f"    std_mean: {float(statistics.std_mean):.4f}")
+        _LOGGER.info(f"    1%-quantile: {int(statistics.quantile(0.01))}")
+        _LOGGER.info(f"    2.5%-quantile: {int(statistics.quantile(0.025))}")
+        _LOGGER.info(f"    25%-quantile: {int(statistics.quantile(0.25))}")
+        _LOGGER.info(f"    median: {int(statistics.quantile(0.5))}")
+        _LOGGER.info(f"    75%-quantile: {int(statistics.quantile(0.75))}")
+        _LOGGER.info(f"    97.5%-quantile: {int(statistics.quantile(0.975))}")
+        _LOGGER.info(f"    99%-quantile: {int(statistics.quantile(0.99))}")
+        _LOGGER.info("  }")
+
     def generate(self) -> None:
         axis_options = self._generate_axis_options()
         if axis_options is None:
@@ -224,7 +262,7 @@ class FigureBase(Document):  # type: ignore
         pass
 
 
-class FigureNumEntitiesAndRevisionsPerYear(FigureBase):
+class FigureNumEntitiesAndRevisionsByYear(FigureBase):
     def __init__(
         self,
         data_dir: Path,
@@ -234,8 +272,10 @@ class FigureNumEntitiesAndRevisionsPerYear(FigureBase):
         self._last_page_id = 0
         self._min_year = min_year
         self._max_year = max_year
-        self._num_entities_per_year_counter = Counter[int]()
-        self._num_revisions_per_year_counter = Counter[int]()
+        self._num_entities_total = 0
+        self._num_revisions_total = 0
+        self._num_entities_by_year_counter = Counter[int]()
+        self._num_revisions_by_year_counter = Counter[int]()
         super().__init__(data_dir=data_dir, tikz_library="pgfplots.dateplot")
 
     def handle_revision(self, revision: WikidatedRevision) -> None:
@@ -245,11 +285,29 @@ class FigureNumEntitiesAndRevisionsPerYear(FigureBase):
 
         if self._last_page_id != revision.page_id:
             self._last_page_id = revision.page_id
+            self._num_entities_total += 1
             for y in range(year, self._max_year + 1):
-                self._num_entities_per_year_counter[y] += 1
+                self._num_entities_by_year_counter[y] += 1
 
+        self._num_revisions_total += 1
         for y in range(year, self._max_year + 1):
-            self._num_revisions_per_year_counter[y] += 1
+            self._num_revisions_by_year_counter[y] += 1
+
+    def log_statistics(self) -> None:
+        super().log_statistics()
+
+        _LOGGER.info(f"  min_year = {self._min_year}")
+        _LOGGER.info(f"  min_year = {self._max_year}")
+        _LOGGER.info(f"  num_entities_total = {self._num_entities_total}")
+        _LOGGER.info(f"  num_revisions_total = {self._num_revisions_total}")
+        _LOGGER.info("  num_entities_by_year_counter = {")
+        for year, num_entities in sorted(self._num_entities_by_year_counter.items()):
+            _LOGGER.info(f"    {year}: {num_entities},")
+        _LOGGER.info("  }")
+        _LOGGER.info("  num_revisions_by_year_counter = {")
+        for year, num_revisions in sorted(self._num_revisions_by_year_counter.items()):
+            _LOGGER.info(f"    {year}: {num_revisions},")
+        _LOGGER.info("  }")
 
     def _generate_axis_options(self) -> Mapping[str, Sequence[str]]:
         shared_axis_options = (
@@ -311,9 +369,7 @@ class FigureNumEntitiesAndRevisionsPerYear(FigureBase):
                 ),
                 coordinates=[
                     (f"{year}-12-31", num)
-                    for year, num in sorted(
-                        self._num_revisions_per_year_counter.items()
-                    )
+                    for year, num in sorted(self._num_revisions_by_year_counter.items())
                 ],
             )
             axis.append(bars)
@@ -330,7 +386,7 @@ class FigureNumEntitiesAndRevisionsPerYear(FigureBase):
                 ),
                 coordinates=[
                     (f"{year}-12-31", num)
-                    for year, num in sorted(self._num_entities_per_year_counter.items())
+                    for year, num in sorted(self._num_entities_by_year_counter.items())
                 ],
             )
             axis.append(bars)
@@ -339,7 +395,7 @@ class FigureNumEntitiesAndRevisionsPerYear(FigureBase):
             axis.append(Command("addlegendentry", "Revisions"))
 
         else:
-            raise ValueError(f"Unkown axis_name '{axis_name}'.")
+            raise ValueError(f"Unknown axis_name '{axis_name}'.")
 
 
 class FigureNumRevisionsPerEntity(FigureBase):
@@ -369,7 +425,9 @@ class FigureNumRevisionsPerEntity(FigureBase):
         else:
             self._num_revisions_of_cur_entity += 1
 
-    def generate(self) -> None:
+    def log_statistics(self) -> None:
+        super().log_statistics()
+
         self._num_revisions_counter[self._num_revisions_of_cur_entity] += 1
         self._num_revisions_of_cur_entity = 0
 
@@ -382,7 +440,11 @@ class FigureNumRevisionsPerEntity(FigureBase):
         num_entities = sum(self._num_revisions_counter.values())
         self._bin_data = [b / num_entities for b in self._bin_data]
 
-        super().generate()
+        self._log_statistics_histogram(
+            "num_revisions_counter", self._num_revisions_counter
+        )
+        _LOGGER.info(f"  bin_intervals = {self._bin_intervals}")
+        _LOGGER.info(f"  bin_data = {self._bin_data}")
 
     def _generate_axis_options(self) -> Sequence[str]:
         return (
@@ -427,6 +489,7 @@ class FigureTimedeltaBetweenRevisions(FigureBase):
     ) -> None:
         self._last_page_id = 0
         self._last_revision_timestamp = datetime.min
+        self._days_between_revisions_counter = Counter[int]()
         self._bin_boundaries = bin_boundaries
         self._bin_data = [0.0 for _ in range(len(self._bin_boundaries) + 1)]
         super().__init__(data_dir=data_dir)
@@ -438,6 +501,9 @@ class FigureTimedeltaBetweenRevisions(FigureBase):
             timedelta_since_last_revision = (
                 revision.timestamp - self._last_revision_timestamp
             )
+            self._days_between_revisions_counter[
+                floor(timedelta_since_last_revision / _DAY)
+            ] += 1
             for i, (_, bin_boundary) in enumerate(self._bin_boundaries):
                 if timedelta_since_last_revision < bin_boundary:
                     self._bin_data[i] += 1
@@ -447,11 +513,17 @@ class FigureTimedeltaBetweenRevisions(FigureBase):
 
         self._last_revision_timestamp = revision.timestamp
 
-    def generate(self) -> None:
+    def log_statistics(self) -> None:
+        super().log_statistics()
+
         num_timedeltas = sum(self._bin_data)
         self._bin_data = [b / num_timedeltas for b in self._bin_data]
 
-        super().generate()
+        self._log_statistics_histogram(
+            "days_between_revisions_counter", self._days_between_revisions_counter
+        )
+        _LOGGER.info(f"  bin_boundaries = {self._bin_boundaries}")
+        _LOGGER.info(f"  bin_data = {self._bin_data}")
 
     def _generate_axis_options(self) -> Sequence[str]:
         return (
@@ -518,7 +590,9 @@ class FigureNumTripleAdditionsAndDeletionsPerRevision(FigureBase):
         self._num_additions_per_revision_counter[len(revision.triple_additions)] += 1
         self._num_deletions_per_revision_counter[len(revision.triple_deletions)] += 1
 
-    def generate(self) -> None:
+    def log_statistics(self) -> None:
+        super().log_statistics()
+
         for num_additions, count in self._num_additions_per_revision_counter.items():
             for i, bin_interval in enumerate(self._bin_intervals):
                 if num_additions in bin_interval:
@@ -536,7 +610,17 @@ class FigureNumTripleAdditionsAndDeletionsPerRevision(FigureBase):
         self._bin_data_additions = [b / num_revisions for b in self._bin_data_additions]
         self._bin_data_deletions = [b / num_revisions for b in self._bin_data_deletions]
 
-        super().generate()
+        self._log_statistics_histogram(
+            "num_additions_per_revision_counter",
+            self._num_additions_per_revision_counter,
+        )
+        self._log_statistics_histogram(
+            "num_deletions_per_revision_counter",
+            self._num_deletions_per_revision_counter,
+        )
+        _LOGGER.info(f"  bin_intervals = {self._bin_intervals}")
+        _LOGGER.info(f"  bin_data_additions = {self._bin_data_additions}")
+        _LOGGER.info(f"  bin_data_deletions = {self._bin_data_deletions}")
 
     def _generate_axis_options(self) -> Sequence[str]:
         return (
@@ -630,7 +714,9 @@ class FigureTimeUntilTripleFirstAdditionAndDeletion(FigureBase):
                 )
             ] += 1
 
-    def generate(self) -> None:
+    def log_statistics(self) -> None:
+        super().log_statistics()
+
         for (
             days_until_triple_addition,
             count,
@@ -660,7 +746,19 @@ class FigureTimeUntilTripleFirstAdditionAndDeletion(FigureBase):
                 b / num_triple_deletions for b in self._bin_data_deletions
             ]
 
-        super().generate()
+        self._log_statistics_histogram(
+            "days_until_triple_addition_counter",
+            self._days_until_triple_addition_counter,
+        )
+        self._log_statistics_histogram(
+            "days_until_triple_deletion_counter",
+            self._days_until_triple_deletion_counter,
+        )
+        _LOGGER.info(f"  num_triple_additions = {num_triple_additions}")
+        _LOGGER.info(f"  num_triple_deletions = {num_triple_deletions}")
+        _LOGGER.info(f"  bin_intervals = {self._bin_intervals}")
+        _LOGGER.info(f"  bin_data_additions = {self._bin_data_additions}")
+        _LOGGER.info(f"  bin_data_deletions = {self._bin_data_deletions}")
 
     def _generate_axis_options(self) -> Sequence[str]:
         return (
@@ -735,7 +833,9 @@ class FigureNumDeletionsPerTriple(FigureBase):
         for triple in revision.triple_deletions:
             self._triple_deletions_counter[triple] += 1
 
-    def generate(self) -> None:
+    def log_statistics(self) -> None:
+        super().log_statistics()
+
         self._num_triple_deletions_counter[0] += len(self._triple_additions)
         for num_triple_deletions in self._triple_deletions_counter.values():
             self._num_triple_deletions_counter[num_triple_deletions] += 1
@@ -748,7 +848,11 @@ class FigureNumDeletionsPerTriple(FigureBase):
                     self._bin_data[i] += count
                     break
 
-        super().generate()
+        self._log_statistics_histogram(
+            "num_triple_deletions_counter", self._num_triple_deletions_counter
+        )
+        _LOGGER.info(f"  bin_intervals = {self._bin_intervals}")
+        _LOGGER.info(f"  bin_data = {self._bin_data}")
 
     def _generate_axis_options(self) -> Sequence[str]:
         return (
@@ -799,7 +903,7 @@ def _main() -> None:
     data_dir = Path("data")
 
     figures: Sequence[FigureBase] = (
-        FigureNumEntitiesAndRevisionsPerYear(data_dir=data_dir),
+        FigureNumEntitiesAndRevisionsByYear(data_dir=data_dir),
         FigureNumRevisionsPerEntity(data_dir=data_dir),
         FigureTimedeltaBetweenRevisions(data_dir=data_dir),
         FigureNumTripleAdditionsAndDeletionsPerRevision(data_dir=data_dir),
@@ -808,7 +912,7 @@ def _main() -> None:
     )
 
     wikidated_manager = WikidatedManager(data_dir)
-    wikidated_manager.configure_logging(log_wdtk=True)
+    wikidated_manager.configure_logging()
     wikidata_dump = wikidated_manager.wikidata_dump(date(year=2021, month=6, day=1))
     wikidated_dataset = wikidated_manager.load_custom(wikidata_dump)
 
@@ -819,6 +923,7 @@ def _main() -> None:
             figure.handle_revision(revision)
 
     for figure in figures:
+        figure.log_statistics()
         figure.generate()
 
 
