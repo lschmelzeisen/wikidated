@@ -37,81 +37,6 @@ _EXPECTED_NUM_PAGES = 96_646_606  # TODO: expose directly?
 _EXPECTED_NUM_REVISIONS = 1_411_008_075  # TODO: expose directly?
 
 
-def _assert_entity_streams_file_structure(wikidated_dataset: WikidatedDataset) -> None:
-    max_page_id = 0
-    for entity_streams_file in tqdm(
-        wikidated_dataset.entity_streams, desc="Validating entity streams files"
-    ):
-        page_ids = entity_streams_file.page_ids
-        assert len(page_ids) > 0
-        assert max_page_id < page_ids[0]
-
-        assert (
-            wikidated_dataset.entity_streams[page_ids[0]]
-            == wikidated_dataset.entity_streams[page_ids[-1]]
-        )
-        assert (
-            wikidated_dataset.sorted_entity_streams[page_ids[0]]
-            == wikidated_dataset.sorted_entity_streams[page_ids[-1]]
-        )
-
-        for page_id in entity_streams_file.iter_page_ids():
-            assert page_id in page_ids
-            assert max_page_id < page_id
-            max_page_id = page_id
-
-        assert max_page_id <= page_ids[-1]
-
-
-def _assert_entity_streams_page_lookup(
-    wikidated_dataset: WikidatedDataset,
-) -> Tuple[int, int]:
-    num_pages = 0
-    num_revisions = 0
-    cur_page_id = 0
-    for page_id in tqdm(
-        wikidated_dataset.iter_page_ids(),
-        total=_EXPECTED_NUM_PAGES,
-        desc="Iterating entity streams (page lookup)",
-    ):
-        num_pages += 1
-
-        assert cur_page_id < page_id
-        cur_page_id = page_id
-
-        cur_revision_id = 0
-        for revision in wikidated_dataset.iter_revisions(page_id):
-            num_revisions += 1
-            assert cur_revision_id < revision.revision_id
-            cur_revision_id = revision.revision_id
-
-    return num_pages, num_revisions
-
-
-def _assert_entity_streams_page_iteration(
-    wikidated_dataset: WikidatedDataset,
-) -> Tuple[int, int]:
-    num_pages = 0
-    num_revisions = 0
-    for _page_id, revisions in tqdm(
-        groupby(
-            wikidated_dataset.iter_revisions(min_page_id=0),
-            key=lambda revision: revision.page_id,
-        ),
-        total=_EXPECTED_NUM_PAGES,
-        desc="Iterating entity streams (page iteration)",
-    ):
-        num_pages += 1
-
-        cur_revision_id = 0
-        for revision in revisions:
-            num_revisions += 1
-            assert cur_revision_id < revision.revision_id
-            cur_revision_id = revision.revision_id
-
-    return num_pages, num_revisions
-
-
 def _assert_global_stream_file_structure(wikidated_dataset: WikidatedDataset) -> None:
     assert wikidated_dataset.dump_version
     expected_months = list(
@@ -171,6 +96,32 @@ def _assert_global_stream_file_structure(wikidated_dataset: WikidatedDataset) ->
     assert not expected_months
 
 
+def _assert_entity_streams_file_structure(wikidated_dataset: WikidatedDataset) -> None:
+    max_page_id = 0
+    for entity_streams_file in tqdm(
+        wikidated_dataset.entity_streams, desc="Validating entity streams files"
+    ):
+        page_ids = entity_streams_file.page_ids
+        assert len(page_ids) > 0
+        assert max_page_id < page_ids[0]
+
+        assert (
+            wikidated_dataset.entity_streams[page_ids[0]]
+            == wikidated_dataset.entity_streams[page_ids[-1]]
+        )
+        assert (
+            wikidated_dataset.sorted_entity_streams[page_ids[0]]
+            == wikidated_dataset.sorted_entity_streams[page_ids[-1]]
+        )
+
+        for page_id in entity_streams_file.iter_page_ids():
+            assert page_id in page_ids
+            assert max_page_id < page_id
+            max_page_id = page_id
+
+        assert max_page_id <= page_ids[-1]
+
+
 def _assert_global_stream_revision_iteration(
     wikidated_dataset: WikidatedDataset,
 ) -> Tuple[int, int]:
@@ -191,6 +142,55 @@ def _assert_global_stream_revision_iteration(
     return len(page_ids), num_revisions
 
 
+def _assert_entity_streams_page_iteration(
+    wikidated_dataset: WikidatedDataset,
+) -> Tuple[int, int]:
+    num_pages = 0
+    num_revisions = 0
+    for _page_id, revisions in tqdm(
+        groupby(
+            wikidated_dataset.iter_revisions(min_page_id=0),
+            key=lambda revision: revision.page_id,
+        ),
+        total=_EXPECTED_NUM_PAGES,
+        desc="Iterating entity streams (page iteration)",
+    ):
+        num_pages += 1
+
+        cur_revision_id = 0
+        for revision in revisions:
+            num_revisions += 1
+            assert cur_revision_id < revision.revision_id
+            cur_revision_id = revision.revision_id
+
+    return num_pages, num_revisions
+
+
+def _assert_entity_streams_page_lookup(
+    wikidated_dataset: WikidatedDataset,
+) -> Tuple[int, int]:
+    num_pages = 0
+    num_revisions = 0
+    cur_page_id = 0
+    for page_id in tqdm(
+        wikidated_dataset.iter_page_ids(),
+        total=_EXPECTED_NUM_PAGES,
+        desc="Iterating entity streams (page lookup)",
+    ):
+        num_pages += 1
+
+        assert cur_page_id < page_id
+        cur_page_id = page_id
+
+        cur_revision_id = 0
+        for revision in wikidated_dataset.iter_revisions(page_id):
+            num_revisions += 1
+            assert cur_revision_id < revision.revision_id
+            cur_revision_id = revision.revision_id
+
+    return num_pages, num_revisions
+
+
 def _main() -> None:
     data_dir = Path("data")
 
@@ -209,15 +209,15 @@ def _main() -> None:
     _LOGGER.info(f"Num pages in global stream: {num_pages1}")
     _LOGGER.info(f"Num revisions in global stream: {num_revisions1}")
 
-    num_pages2, num_revisions2 = _assert_entity_streams_page_lookup(wikidated_dataset)
-    _LOGGER.info(f"Num pages in entity streams (page lookup): {num_pages2}")
-    _LOGGER.info(f"Num revisions in entity streams (page lookup): {num_revisions2}")
-
-    num_pages3, num_revisions3 = _assert_entity_streams_page_iteration(
+    num_pages2, num_revisions2 = _assert_entity_streams_page_iteration(
         wikidated_dataset
     )
-    _LOGGER.info(f"Num pages in entity streams (page iteration): {num_pages3}")
-    _LOGGER.info(f"Num revisions in entity streams (page iteration): {num_revisions3}")
+    _LOGGER.info(f"Num pages in entity streams (page iteration): {num_pages2}")
+    _LOGGER.info(f"Num revisions in entity streams (page iteration): {num_revisions2}")
+
+    num_pages3, num_revisions3 = _assert_entity_streams_page_lookup(wikidated_dataset)
+    _LOGGER.info(f"Num pages in entity streams (page lookup): {num_pages3}")
+    _LOGGER.info(f"Num revisions in entity streams (page lookup): {num_revisions3}")
 
 
 if __name__ == "__main__":
