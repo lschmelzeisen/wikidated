@@ -15,7 +15,7 @@
 #
 
 from calendar import monthrange
-from datetime import date
+from datetime import date, timedelta
 from itertools import groupby, takewhile
 from logging import getLogger
 from pathlib import Path
@@ -35,6 +35,7 @@ _LOGGER = getLogger(__name__)
 
 _EXPECTED_NUM_PAGES = 96_646_606  # TODO: expose directly?
 _EXPECTED_NUM_REVISIONS = 1_411_008_075  # TODO: expose directly?
+_PERIOD_AFTER_DUMP_VERSION = timedelta(days=1)
 
 
 def _assert_global_stream_file_structure(wikidated_dataset: WikidatedDataset) -> None:
@@ -69,7 +70,11 @@ def _assert_global_stream_file_structure(wikidated_dataset: WikidatedDataset) ->
         )
         for i in range(1, num_days_in_month + 1):
             day = month.replace(day=i)
-            if not _WIKIDATA_INCEPTION_DATE <= day <= wikidated_dataset.dump_version:
+            if (
+                not _WIKIDATA_INCEPTION_DATE
+                <= day
+                <= wikidated_dataset.dump_version + _PERIOD_AFTER_DUMP_VERSION
+            ):
                 continue
 
             components_of_day = list(
@@ -78,6 +83,9 @@ def _assert_global_stream_file_structure(wikidated_dataset: WikidatedDataset) ->
                 )
             )
             components = components[len(components_of_day) :]
+            if day > wikidated_dataset and not components_of_day:
+                # In _PERIOD_AFTER_DUMP_VERSION.
+                continue
             assert len(components_of_day) == 1
 
             component = components_of_day[0]
