@@ -51,7 +51,6 @@ from wikidated.wikidated_manager import WikidatedManager
 from wikidated.wikidated_revision import WikidatedRevision
 
 _EXPECTED_NUM_REVISIONS = 1_411_008_075  # TODO: expose directly?
-_EXPECTED_NUM_REVISIONS = 977_557
 _DAY = timedelta(days=1)
 
 _LOGGER = getLogger(__name__)
