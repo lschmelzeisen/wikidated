@@ -43,6 +43,7 @@ from pylatex import (  # type: ignore
     TikZOptions,
     TikZScope,
 )
+from pylatex.errors import PyLaTeXError
 from statsmodels.stats.weightstats import DescrStatsW  # type: ignore
 from tqdm import tqdm  # type: ignore
 
@@ -250,7 +251,10 @@ class FigureBase(Document):  # type: ignore
                 ) as axis:
                     self._generate_axis_content(axis, axis_name)
 
-        self.generate_pdf(clean_tex=False, silent=True)
+        try:
+            self.generate_pdf(clean_tex=False, silent=True)
+        except PyLaTeXError:
+            _LOGGER.exception("Generating PDF from LaTeX document failed.")
 
     def _generate_axis_options(
         self,
