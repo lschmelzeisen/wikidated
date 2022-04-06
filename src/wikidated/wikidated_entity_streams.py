@@ -25,12 +25,14 @@ from shutil import rmtree
 from sys import maxsize
 from typing import (
     Any,
+    Generic,
     Iterable,
     Iterator,
     Mapping,
     MutableSet,
     Optional,
     Tuple,
+    TypeVar,
     Union,
     overload,
 )
@@ -59,8 +61,6 @@ _LOGGER = getLogger(__name__)
 
 class WikidatedEntityStreamsFile:
     def __init__(self, archive_path: Path, page_ids: range) -> None:
-        if not archive_path.exists():
-            raise FileNotFoundError(archive_path)
         self.archive_path: Final = archive_path
         self.page_ids: Final = page_ids
 
@@ -73,6 +73,8 @@ class WikidatedEntityStreamsFile:
         min_timestamp: Optional[datetime] = None,
         max_timestamp: Optional[datetime] = None,
     ) -> Iterator[WikidatedRevision]:
+        if not self.archive_path.exists():
+            raise FileNotFoundError(self.archive_path)
         archive = SevenZipArchive(self.archive_path)
         min_revision_id_ = min_revision_id or -maxsize
         max_revision_id_ = max_revision_id or maxsize
@@ -105,6 +107,8 @@ class WikidatedEntityStreamsFile:
                 yield revision
 
     def iter_page_ids(self) -> Iterator[int]:
+        if not self.archive_path.exists():
+            raise FileNotFoundError(self.archive_path)
         archive = SevenZipArchive(self.archive_path)
         for page_id, _component_file_name in sorted(
             (WikidatedEntityStreamsFile._parse_archive_component_path(Path(c)), c)
@@ -150,12 +154,12 @@ class WikidatedEntityStreamsFile:
         return page_id
 
     @classmethod
-    def load(cls, path: Path) -> WikidatedEntityStreamsFile:
+    def load_custom(cls, path: Path) -> WikidatedEntityStreamsFile:
         _, page_ids = cls._parse_archive_path(path)
         return WikidatedEntityStreamsFile(path, page_ids)
 
     @classmethod
-    def build(
+    def build_custom(
         cls,
         dataset_dir: Path,
         pages_meta_history: WikidataDumpPagesMetaHistory,
@@ -279,22 +283,29 @@ _SITES_TABLE: Optional[WikidataDumpSitesTable] = None
 _JVM_MANAGER: Optional[JvmManager] = None
 
 
-class WikidatedEntityStreams:
-    def __init__(self, files_by_page_ids: RangeMap[WikidatedEntityStreamsFile]) -> None:
+_T_WikidatedEntityStreamsFile = TypeVar(
+    "_T_WikidatedEntityStreamsFile", bound=WikidatedEntityStreamsFile
+)
+
+
+class WikidatedGenericEntityStreams(Generic[_T_WikidatedEntityStreamsFile]):
+    def __init__(
+        self, files_by_page_ids: RangeMap[_T_WikidatedEntityStreamsFile]
+    ) -> None:
         self._files_by_page_ids = files_by_page_ids
 
     def __len__(self) -> int:
         return len(self._files_by_page_ids)
 
-    def __iter__(self) -> Iterator[WikidatedEntityStreamsFile]:
+    def __iter__(self) -> Iterator[_T_WikidatedEntityStreamsFile]:
         return iter(self._files_by_page_ids.values())
 
     @overload
-    def __getitem__(self, key: int) -> WikidatedEntityStreamsFile:
+    def __getitem__(self, key: int) -> _T_WikidatedEntityStreamsFile:
         ...
 
     @overload
-    def __getitem__(self, key: slice) -> Iterable[WikidatedEntityStreamsFile]:
+    def __getitem__(self, key: slice) -> Iterable[_T_WikidatedEntityStreamsFile]:
         ...
 
     @overload
@@ -303,26 +314,26 @@ class WikidatedEntityStreams:
 
     def __getitem__(
         self, key: object
-    ) -> Union[WikidatedEntityStreamsFile, Iterable[WikidatedEntityStreamsFile]]:
+    ) -> Union[WikidatedEntityStreamsFile, Iterable[_T_WikidatedEntityStreamsFile]]:
         if isinstance(key, int) or isinstance(key, slice):
             return self._files_by_page_ids[key]
         else:
             raise TypeError("key needs to be of type int.")
 
     @classmethod
-    def load(cls, dataset_dir: Path) -> WikidatedEntityStreams:
+    def load_custom(cls, dataset_dir: Path) -> WikidatedEntityStreams:
         _LOGGER.debug(f"Loading entity streams for dataset {dataset_dir.name}.")
         files_by_page_ids = RangeMap[WikidatedEntityStreamsFile]()
         for path in dataset_dir.glob(
             WikidatedEntityStreamsFile.archive_path_glob(dataset_dir)
         ):
-            file = WikidatedEntityStreamsFile.load(path)
+            file = WikidatedEntityStreamsFile.load_custom(path)
             files_by_page_ids[file.page_ids] = file
         _LOGGER.debug(f"Done loading entity streams for dataset {dataset_dir.name}.")
         return WikidatedEntityStreams(files_by_page_ids)
 
     @classmethod
-    def build(
+    def build_custom(
         cls,
         dataset_dir: Path,
         jars_dir: Path,
@@ -361,7 +372,7 @@ class WikidatedEntityStreams:
         rdf_converter = extra_arguments["rdf_converter"]
         assert isinstance(rdf_converter, WikidataRdfConverter)
 
-        file, revisions_builder = WikidatedEntityStreamsFile.build(
+        file, revisions_builder = WikidatedEntityStreamsFile.build_custom(
             dataset_dir, argument, rdf_converter
         )
         progress_name = file.archive_path.name
@@ -389,3 +400,6 @@ class WikidatedEntityStreams:
         if _JVM_MANAGER is not None:
             _JVM_MANAGER.close()
             _JVM_MANAGER = None
+
+
+WikidatedEntityStreams = WikidatedGenericEntityStreams[WikidatedEntityStreamsFile]

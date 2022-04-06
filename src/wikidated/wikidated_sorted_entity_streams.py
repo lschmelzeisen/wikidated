@@ -21,7 +21,17 @@ from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import Path
 from sys import maxsize
-from typing import Any, Iterable, Iterator, Optional, Tuple, Union, overload
+from typing import (
+    Any,
+    Generic,
+    Iterable,
+    Iterator,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+    overload,
+)
 
 from tqdm import tqdm  # type: ignore
 from typing_extensions import Final
@@ -38,8 +48,6 @@ _LOGGER = getLogger(__name__)
 
 class WikidatedSortedEntityStreamsFile:
     def __init__(self, archive_path: Path, page_ids: range) -> None:
-        if not archive_path.exists():
-            raise FileNotFoundError(archive_path)
         self.archive_path: Final = archive_path
         self.page_ids: Final = page_ids
 
@@ -51,6 +59,8 @@ class WikidatedSortedEntityStreamsFile:
         min_timestamp: Optional[datetime] = None,
         max_timestamp: Optional[datetime] = None,
     ) -> Iterator[WikidatedRevision]:
+        if not self.archive_path.exists():
+            raise FileNotFoundError(self.archive_path)
         archive = SevenZipArchive(self.archive_path)
         min_revision_id_ = min_revision_id or -maxsize
         max_revision_id_ = max_revision_id or maxsize
@@ -101,12 +111,12 @@ class WikidatedSortedEntityStreamsFile:
         return dataset_dir, page_ids
 
     @classmethod
-    def load(cls, path: Path) -> WikidatedSortedEntityStreamsFile:
+    def load_custom(cls, path: Path) -> WikidatedSortedEntityStreamsFile:
         _, page_ids = cls._parse_archive_path(path)
         return WikidatedSortedEntityStreamsFile(path, page_ids)
 
     @classmethod
-    def build(
+    def build_custom(
         cls, dataset_dir: Path, entity_streams_file: WikidatedEntityStreamsFile
     ) -> WikidatedSortedEntityStreamsFile:
         archive_path = cls._make_archive_path(dataset_dir, entity_streams_file.page_ids)
@@ -133,22 +143,29 @@ class WikidatedSortedEntityStreamsFile:
         )
 
 
-class WikidatedSortedEntityStreams:
-    def __init__(self, files_by_page_ids: RangeMap[WikidatedSortedEntityStreamsFile]):
+_T_WikidatedSortedEntityStreamsFile = TypeVar(
+    "_T_WikidatedSortedEntityStreamsFile", bound=WikidatedSortedEntityStreamsFile
+)
+
+
+class WikidatedGenericSortedEntityStreams(Generic[_T_WikidatedSortedEntityStreamsFile]):
+    def __init__(
+        self, files_by_page_ids: RangeMap[_T_WikidatedSortedEntityStreamsFile]
+    ):
         self._files_by_page_ids = files_by_page_ids
 
     def __len__(self) -> int:
         return len(self._files_by_page_ids)
 
-    def __iter__(self) -> Iterator[WikidatedSortedEntityStreamsFile]:
+    def __iter__(self) -> Iterator[_T_WikidatedSortedEntityStreamsFile]:
         return iter(self._files_by_page_ids.values())
 
     @overload
-    def __getitem__(self, key: int) -> WikidatedSortedEntityStreamsFile:
+    def __getitem__(self, key: int) -> _T_WikidatedSortedEntityStreamsFile:
         ...
 
     @overload
-    def __getitem__(self, key: slice) -> Iterable[WikidatedSortedEntityStreamsFile]:
+    def __getitem__(self, key: slice) -> Iterable[_T_WikidatedSortedEntityStreamsFile]:
         ...
 
     @overload
@@ -158,7 +175,7 @@ class WikidatedSortedEntityStreams:
     def __getitem__(
         self, key: object
     ) -> Union[
-        WikidatedSortedEntityStreamsFile, Iterable[WikidatedSortedEntityStreamsFile]
+        WikidatedSortedEntityStreamsFile, Iterable[_T_WikidatedSortedEntityStreamsFile]
     ]:
         if isinstance(key, int) or isinstance(key, slice):
             return self._files_by_page_ids[key]
@@ -166,13 +183,13 @@ class WikidatedSortedEntityStreams:
             raise TypeError("key needs to be of type int or slice.")
 
     @classmethod
-    def load(cls, dataset_dir: Path) -> WikidatedSortedEntityStreams:
+    def load_custom(cls, dataset_dir: Path) -> WikidatedSortedEntityStreams:
         _LOGGER.debug(f"Loading sorted entity streams for dataset {dataset_dir.name}.")
         files_by_page_ids = RangeMap[WikidatedSortedEntityStreamsFile]()
         for path in dataset_dir.glob(
             WikidatedSortedEntityStreamsFile.archive_path_glob(dataset_dir)
         ):
-            file = WikidatedSortedEntityStreamsFile.load(path)
+            file = WikidatedSortedEntityStreamsFile.load_custom(path)
             files_by_page_ids[file.page_ids] = file
         _LOGGER.debug(
             f"Done loading sorted entity streams for dataset {dataset_dir.name}."
@@ -180,13 +197,13 @@ class WikidatedSortedEntityStreams:
         return WikidatedSortedEntityStreams(files_by_page_ids)
 
     @classmethod
-    def build(
+    def build_custom(
         cls, dataset_dir: Path, entity_streams: WikidatedEntityStreams
     ) -> WikidatedSortedEntityStreams:
         _LOGGER.debug(f"Building sorted entity streams for dataset {dataset_dir.name}.")
         files_by_page_ids = RangeMap[WikidatedSortedEntityStreamsFile]()
         for entity_streams_file in tqdm(entity_streams, desc="Sorted Entity Streams"):
-            file = WikidatedSortedEntityStreamsFile.build(
+            file = WikidatedSortedEntityStreamsFile.build_custom(
                 dataset_dir, entity_streams_file
             )
             files_by_page_ids[file.page_ids] = file
@@ -194,3 +211,8 @@ class WikidatedSortedEntityStreams:
             f"Done building sorted entity streams for dataset {dataset_dir.name}."
         )
         return WikidatedSortedEntityStreams(files_by_page_ids)
+
+
+WikidatedSortedEntityStreams = WikidatedGenericSortedEntityStreams[
+    WikidatedSortedEntityStreamsFile
+]

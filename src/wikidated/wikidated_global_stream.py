@@ -24,7 +24,17 @@ from logging import getLogger
 from pathlib import Path
 from shutil import rmtree
 from sys import maxsize
-from typing import Any, Iterable, Iterator, Optional, Tuple, Union, overload
+from typing import (
+    Any,
+    Generic,
+    Iterable,
+    Iterator,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+    overload,
+)
 
 from tqdm import tqdm  # type: ignore
 from typing_extensions import Final
@@ -45,8 +55,6 @@ _WIKIDATA_INCEPTION_DATE = date(year=2012, month=10, day=29)
 
 class WikidatedGlobalStreamFile:
     def __init__(self, archive_path: Path, month: date, revision_ids: range) -> None:
-        if not archive_path.exists():
-            raise FileNotFoundError(archive_path)
         self.archive_path: Final = archive_path
         self.month: Final = month
         self.revision_ids: Final = revision_ids
@@ -63,6 +71,8 @@ class WikidatedGlobalStreamFile:
         min_timestamp: Optional[datetime] = None,
         max_timestamp: Optional[datetime] = None,
     ) -> Iterator[WikidatedRevision]:
+        if not self.archive_path.exists():
+            raise FileNotFoundError(self.archive_path)
         archive = SevenZipArchive(self.archive_path)
         min_revision_id_ = min_revision_id or -maxsize
         max_revision_id_ = max_revision_id or maxsize
@@ -143,12 +153,12 @@ class WikidatedGlobalStreamFile:
         return day, revision_ids
 
     @classmethod
-    def load(cls, path: Path) -> WikidatedGlobalStreamFile:
+    def load_custom(cls, path: Path) -> WikidatedGlobalStreamFile:
         _, month, revision_ids = cls._parse_archive_path(path)
         return WikidatedGlobalStreamFile(path, month, revision_ids)
 
     @classmethod
-    def build(
+    def build_custom(
         cls, dataset_dir: Path, month: date, revisions: Iterator[WikidatedRevision]
     ) -> Tuple[WikidatedGlobalStreamFile, Iterator[WikidatedRevision]]:
         if month.day != 1:
@@ -278,11 +288,16 @@ class WikidatedGlobalStreamFile:
         return WikidatedGlobalStreamFile(archive_path, month, revision_ids)
 
 
-class WikidatedGlobalStream:
+_T_WikidatedGlobalStreamFile = TypeVar(
+    "_T_WikidatedGlobalStreamFile", bound=WikidatedGlobalStreamFile
+)
+
+
+class WikidatedGenericGlobalStream(Generic[_T_WikidatedGlobalStreamFile]):
     def __init__(
         self,
-        files_by_months: RangeMap[WikidatedGlobalStreamFile],
-        files_by_revision_ids: RangeMap[WikidatedGlobalStreamFile],
+        files_by_months: RangeMap[_T_WikidatedGlobalStreamFile],
+        files_by_revision_ids: RangeMap[_T_WikidatedGlobalStreamFile],
     ) -> None:
         self._files_by_months = files_by_months
         self._files_by_revision_ids = files_by_revision_ids
@@ -290,19 +305,19 @@ class WikidatedGlobalStream:
     def __len__(self) -> int:
         return len(self._files_by_months)
 
-    def __iter__(self) -> Iterator[WikidatedGlobalStreamFile]:
+    def __iter__(self) -> Iterator[_T_WikidatedGlobalStreamFile]:
         return iter(self._files_by_months.values())
 
     @overload
-    def __getitem__(self, key: date) -> WikidatedGlobalStreamFile:
+    def __getitem__(self, key: date) -> _T_WikidatedGlobalStreamFile:
         ...
 
     @overload
-    def __getitem__(self, key: int) -> WikidatedGlobalStreamFile:
+    def __getitem__(self, key: int) -> _T_WikidatedGlobalStreamFile:
         ...
 
     @overload
-    def __getitem__(self, key: slice) -> Iterable[WikidatedGlobalStreamFile]:
+    def __getitem__(self, key: slice) -> Iterable[_T_WikidatedGlobalStreamFile]:
         ...
 
     @overload
@@ -311,7 +326,7 @@ class WikidatedGlobalStream:
 
     def __getitem__(
         self, key: object
-    ) -> Union[WikidatedGlobalStreamFile, Iterable[WikidatedGlobalStreamFile]]:
+    ) -> Union[WikidatedGlobalStreamFile, Iterable[_T_WikidatedGlobalStreamFile]]:
         if isinstance(key, date):
             return self._files_by_months[key.toordinal()]
         elif isinstance(key, int):
@@ -335,21 +350,21 @@ class WikidatedGlobalStream:
             raise TypeError("key needs to be of type date or int.")
 
     @classmethod
-    def load(cls, dataset_dir: Path) -> WikidatedGlobalStream:
+    def load_custom(cls, dataset_dir: Path) -> WikidatedGlobalStream:
         _LOGGER.debug(f"Loading global stream for dataset {dataset_dir.name}.")
         files_by_months = RangeMap[WikidatedGlobalStreamFile]()
         files_by_revision_ids = RangeMap[WikidatedGlobalStreamFile]()
         for path in dataset_dir.glob(
             WikidatedGlobalStreamFile.archive_path_glob(dataset_dir)
         ):
-            file = WikidatedGlobalStreamFile.load(path)
+            file = WikidatedGlobalStreamFile.load_custom(path)
             files_by_months[file.months] = file
             files_by_revision_ids[file.revision_ids] = file
         _LOGGER.debug(f"Done loading global stream for dataset {dataset_dir.name}.")
         return WikidatedGlobalStream(files_by_months, files_by_revision_ids)
 
     @classmethod
-    def build(
+    def build_custom(
         cls,
         dataset_dir: Path,
         sorted_entity_streams: WikidatedSortedEntityStreams,
@@ -373,7 +388,7 @@ class WikidatedGlobalStream:
             ),
             desc="Global Stream",
         ):
-            file, sorted_revisions = WikidatedGlobalStreamFile.build(
+            file, sorted_revisions = WikidatedGlobalStreamFile.build_custom(
                 dataset_dir, month, sorted_revisions
             )
             files_by_months[file.months] = file
@@ -388,3 +403,6 @@ class WikidatedGlobalStream:
 
         _LOGGER.debug(f"Done building global stream for dataset {dataset_dir.name}.")
         return WikidatedGlobalStream(files_by_months, files_by_revision_ids)
+
+
+WikidatedGlobalStream = WikidatedGenericGlobalStream[WikidatedGlobalStreamFile]

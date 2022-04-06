@@ -21,27 +21,52 @@ from datetime import date, datetime
 from logging import getLogger
 from pathlib import Path
 from sys import maxsize
-from typing import Iterator, Optional
+from typing import Any, Generic, Iterator, Optional, TypeVar, cast
 
 from typing_extensions import Final
 
 from wikidated.wikidata import WikidataDump
-from wikidated.wikidated_entity_streams import WikidatedEntityStreams
-from wikidated.wikidated_global_stream import WikidatedGlobalStream
+from wikidated.wikidated_entity_streams import (
+    WikidatedEntityStreams,
+    WikidatedGenericEntityStreams,
+)
+from wikidated.wikidated_global_stream import (
+    WikidatedGenericGlobalStream,
+    WikidatedGlobalStream,
+)
 from wikidated.wikidated_revision import WikidatedRevision
-from wikidated.wikidated_sorted_entity_streams import WikidatedSortedEntityStreams
+from wikidated.wikidated_sorted_entity_streams import (
+    WikidatedGenericSortedEntityStreams,
+    WikidatedSortedEntityStreams,
+)
 
 _LOGGER = getLogger(__name__)
 
+_T_WikidatedEntityStreams = TypeVar(
+    "_T_WikidatedEntityStreams", bound=WikidatedGenericEntityStreams[Any]
+)
+_T_WikidatedSortedEntityStreams = TypeVar(
+    "_T_WikidatedSortedEntityStreams", bound=WikidatedGenericSortedEntityStreams[Any]
+)
+_T_WikidatedGlobalStream = TypeVar(
+    "_T_WikidatedGlobalStream", bound=WikidatedGenericGlobalStream[Any]
+)
 
-class WikidatedDataset:
+
+class WikidatedGenericDataset(
+    Generic[
+        _T_WikidatedEntityStreams,
+        _T_WikidatedSortedEntityStreams,
+        _T_WikidatedGlobalStream,
+    ]
+):
     def __init__(
         self,
         dataset_dir: Path,
         dump_version: Optional[date],
-        entity_streams: WikidatedEntityStreams,
-        sorted_entity_streams: WikidatedSortedEntityStreams,
-        global_stream: WikidatedGlobalStream,
+        entity_streams: _T_WikidatedEntityStreams,
+        sorted_entity_streams: _T_WikidatedSortedEntityStreams,
+        global_stream: _T_WikidatedGlobalStream,
     ) -> None:
         self.dataset_dir: Final = dataset_dir
         self.dump_version: Final = dump_version
@@ -57,11 +82,7 @@ class WikidatedDataset:
             return "custom-unknown"
 
     @classmethod
-    def download(cls) -> WikidatedDataset:
-        raise NotImplementedError()  # TODO
-
-    @classmethod
-    def load(cls, dataset_dir: Path) -> WikidatedDataset:
+    def load_custom(cls, dataset_dir: Path) -> WikidatedDataset:
         _LOGGER.debug(f"Loading dataset {dataset_dir.name}.")
 
         match = re.match(
@@ -77,9 +98,9 @@ class WikidatedDataset:
             else None
         )
 
-        entity_streams = WikidatedEntityStreams.load(dataset_dir)
-        sorted_entity_streams = WikidatedSortedEntityStreams.load(dataset_dir)
-        global_stream = WikidatedGlobalStream.load(dataset_dir)
+        entity_streams = WikidatedEntityStreams.load_custom(dataset_dir)
+        sorted_entity_streams = WikidatedSortedEntityStreams.load_custom(dataset_dir)
+        global_stream = WikidatedGlobalStream.load_custom(dataset_dir)
         _LOGGER.debug(f"Done loading dataset {dataset_dir.name}.")
         return WikidatedDataset(
             dataset_dir,
@@ -90,7 +111,7 @@ class WikidatedDataset:
         )
 
     @classmethod
-    def build(
+    def build_custom(
         cls,
         dataset_dir: Path,
         jars_dir: Path,
@@ -99,17 +120,17 @@ class WikidatedDataset:
         max_workers: Optional[int] = 4,
     ) -> WikidatedDataset:
         _LOGGER.info(f"Building dataset {dataset_dir.name} with {max_workers} workers.")
-        entity_streams = WikidatedEntityStreams.build(
+        entity_streams = WikidatedEntityStreams.build_custom(
             dataset_dir,
             jars_dir,
             wikidata_dump.sites_table,
             wikidata_dump.pages_meta_history,
             max_workers=max_workers,
         )
-        sorted_entity_streams = WikidatedSortedEntityStreams.build(
+        sorted_entity_streams = WikidatedSortedEntityStreams.build_custom(
             dataset_dir, entity_streams
         )
-        global_stream = WikidatedGlobalStream.build(
+        global_stream = WikidatedGlobalStream.build_custom(
             dataset_dir, sorted_entity_streams, wikidata_dump.version
         )
         _LOGGER.info(f"Done building dataset {dataset_dir.name}.")
@@ -155,6 +176,8 @@ class WikidatedDataset:
             ]
             for entity_streams_file in entity_streams_files:
                 yield from entity_streams_file.iter_revisions(
+                    # TODO: check that this does return entities outside the requested
+                    #  range.
                     min_revision_id=min_revision_id,
                     max_revision_id=max_revision_id,
                     min_timestamp=min_timestamp,
@@ -173,7 +196,7 @@ class WikidatedDataset:
             global_stream_files = sorted(
                 set(global_stream_files_by_revision_ids)
                 & set(global_stream_files_by_timestamps),
-                key=lambda f: f.month,
+                key=lambda f: cast(date, f.month),
             )
             for global_stream_file in global_stream_files:
                 yield from global_stream_file.iter_revisions(
@@ -186,3 +209,8 @@ class WikidatedDataset:
     def iter_page_ids(self) -> Iterator[int]:
         for entity_streams_file in self.entity_streams:
             yield from entity_streams_file.iter_page_ids()
+
+
+WikidatedDataset = WikidatedGenericDataset[
+    WikidatedEntityStreams, WikidatedSortedEntityStreams, WikidatedGlobalStream
+]

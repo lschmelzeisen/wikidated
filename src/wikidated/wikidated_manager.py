@@ -26,6 +26,7 @@ from typing_extensions import Final
 from wikidated._utils import JavaArtifact, JavaDependencyDownloader
 from wikidated.wikidata import WikidataDump
 from wikidated.wikidated_dataset import WikidatedDataset
+from wikidated.wikidated_v1_0 import WikidatedV1_0Dataset
 
 
 class WikidatedManager:
@@ -55,20 +56,22 @@ class WikidatedManager:
             raise TypeError(
                 "dataset_dir_or_wikidata_dump must be either a Path or a WikidataDump."
             )
-        return WikidatedDataset.load(dataset_dir)
+        return WikidatedDataset.load_custom(dataset_dir)
 
     def build_custom(
         self, wikidata_dump: WikidataDump, max_workers: Optional[int] = 4
     ) -> WikidatedDataset:
-        return WikidatedDataset.build(
+        return WikidatedDataset.build_custom(
             self.data_dir / f"wikidated-custom-{wikidata_dump.version:%4Y%2m%2d}",
             self.jars_dir,
             wikidata_dump,
             max_workers=max_workers,
         )
 
-    def v1_0(self) -> WikidatedDataset:
-        raise NotImplementedError()  # TODO
+    def v1_0(self, auto_download: bool = True) -> WikidatedV1_0Dataset:
+        return WikidatedV1_0Dataset.load_v1_0(
+            self.data_dir / "wikidated-1.0", auto_download=auto_download
+        )
 
     def page_id_from_entity_id(self, entity_id: str) -> int:
         raise NotImplementedError()  # TODO
@@ -119,9 +122,9 @@ class WikidatedManager:
         )
         java_dependency_downloader.download_java_dependencies(
             (
-                JavaArtifact("org.slf4j", "slf4j-jdk14", "1.7.32"),
-                JavaArtifact("org.wikidata.wdtk", "wdtk-datamodel", "0.12.1"),
-                JavaArtifact("org.wikidata.wdtk", "wdtk-dumpfiles", "0.12.1"),
-                JavaArtifact("org.wikidata.wdtk", "wdtk-rdf", "0.12.1"),
+                JavaArtifact("org.slf4j", "slf4j-jdk14", "1.7.36"),
+                JavaArtifact("org.wikidata.wdtk", "wdtk-datamodel", "0.13.1"),
+                JavaArtifact("org.wikidata.wdtk", "wdtk-dumpfiles", "0.13.1"),
+                JavaArtifact("org.wikidata.wdtk", "wdtk-rdf", "0.13.1"),
             )
         )
