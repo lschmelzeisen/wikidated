@@ -228,4 +228,9 @@ def _main() -> None:
 
 
 if __name__ == "__main__":
-    _main()
+    try:
+        _main()
+    except Exception:
+        # Make exceptions show up in log.
+        _LOGGER.exception("Exception occurred.")
+        raise
