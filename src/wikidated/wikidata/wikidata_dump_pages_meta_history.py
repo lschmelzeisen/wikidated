@@ -138,7 +138,7 @@ class WikidataDumpPagesMetaHistory(WikidataDumpFile):
             else None
         )
 
-        num_entities = 0
+        num_pages = 0
         num_revisions = 0
         with SevenZipArchive(self.path).read() as fd:
             lines = iter(fd)
@@ -155,7 +155,7 @@ class WikidataDumpPagesMetaHistory(WikidataDumpFile):
                 for revision in self._process_page(chain((line,), lines)):
                     yield revision
                     num_revisions += 1
-                num_entities += 1
+                num_pages += 1
                 if progress_bar:
                     progress_bar.update(1)
 
@@ -171,7 +171,7 @@ class WikidataDumpPagesMetaHistory(WikidataDumpFile):
 
         _LOGGER.debug(
             f"Done parsing revisions from pages meta history dump {self.path.name}. "
-            f"Found {num_entities:,} entities and {num_revisions:,} revisions."
+            f"Found {num_pages:,} pages and {num_revisions:,} revisions."
         )
 
     @classmethod
