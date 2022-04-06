@@ -16,6 +16,7 @@
 
 from contextlib import contextmanager
 from datetime import date, timedelta
+from errno import EEXIST
 from logging import getLogger
 from pathlib import Path
 from subprocess import PIPE, Popen, TimeoutExpired
@@ -132,8 +133,11 @@ def hashcheck(file: Union[Path, IO[bytes]], h: Hash, expected: str) -> None:
     actual = hashsum(file, h)
     if actual != expected:
         file_name = f"File '{file}'" if isinstance(file, Path) else "File"
-        raise Exception(
-            f"{file_name} has {h.name} hash '{actual}' but '{expected}' was expected."
+        raise FileExistsError(
+            EEXIST,
+            f"{file_name} exists, but has {h.name} hash '{actual}' while "
+            f"'{expected}' was expected.",
+            str(file_name),
         )
 
 
