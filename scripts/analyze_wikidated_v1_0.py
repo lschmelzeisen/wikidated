@@ -43,7 +43,7 @@ from pylatex import (  # type: ignore
     TikZOptions,
     TikZScope,
 )
-from pylatex.errors import PyLaTeXError
+from pylatex.errors import PyLaTeXError  # type: ignore
 from statsmodels.stats.weightstats import DescrStatsW  # type: ignore
 from tqdm import tqdm  # type: ignore
 
