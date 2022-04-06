@@ -288,16 +288,18 @@ class WikidatedGlobalStreamFile:
         return WikidatedGlobalStreamFile(archive_path, month, revision_ids)
 
 
-_T_WikidatedGlobalStreamFile = TypeVar(
-    "_T_WikidatedGlobalStreamFile", bound=WikidatedGlobalStreamFile
+_T_WikidatedGlobalStreamFile_co = TypeVar(
+    "_T_WikidatedGlobalStreamFile_co",
+    bound=WikidatedGlobalStreamFile,
+    covariant=True,
 )
 
 
-class WikidatedGenericGlobalStream(Generic[_T_WikidatedGlobalStreamFile]):
+class WikidatedGenericGlobalStream(Generic[_T_WikidatedGlobalStreamFile_co]):
     def __init__(
         self,
-        files_by_months: RangeMap[_T_WikidatedGlobalStreamFile],
-        files_by_revision_ids: RangeMap[_T_WikidatedGlobalStreamFile],
+        files_by_months: RangeMap[_T_WikidatedGlobalStreamFile_co],
+        files_by_revision_ids: RangeMap[_T_WikidatedGlobalStreamFile_co],
     ) -> None:
         self._files_by_months = files_by_months
         self._files_by_revision_ids = files_by_revision_ids
@@ -305,19 +307,19 @@ class WikidatedGenericGlobalStream(Generic[_T_WikidatedGlobalStreamFile]):
     def __len__(self) -> int:
         return len(self._files_by_months)
 
-    def __iter__(self) -> Iterator[_T_WikidatedGlobalStreamFile]:
+    def __iter__(self) -> Iterator[_T_WikidatedGlobalStreamFile_co]:
         return iter(self._files_by_months.values())
 
     @overload
-    def __getitem__(self, key: date) -> _T_WikidatedGlobalStreamFile:
+    def __getitem__(self, key: date) -> _T_WikidatedGlobalStreamFile_co:
         ...
 
     @overload
-    def __getitem__(self, key: int) -> _T_WikidatedGlobalStreamFile:
+    def __getitem__(self, key: int) -> _T_WikidatedGlobalStreamFile_co:
         ...
 
     @overload
-    def __getitem__(self, key: slice) -> Iterable[_T_WikidatedGlobalStreamFile]:
+    def __getitem__(self, key: slice) -> Iterable[_T_WikidatedGlobalStreamFile_co]:
         ...
 
     @overload
@@ -326,7 +328,7 @@ class WikidatedGenericGlobalStream(Generic[_T_WikidatedGlobalStreamFile]):
 
     def __getitem__(
         self, key: object
-    ) -> Union[WikidatedGlobalStreamFile, Iterable[_T_WikidatedGlobalStreamFile]]:
+    ) -> Union[WikidatedGlobalStreamFile, Iterable[_T_WikidatedGlobalStreamFile_co]]:
         if isinstance(key, date):
             return self._files_by_months[key.toordinal()]
         elif isinstance(key, int):

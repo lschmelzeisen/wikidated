@@ -15,7 +15,7 @@
 #
 
 from calendar import monthrange
-from datetime import date, timedelta
+from datetime import timedelta
 from itertools import groupby, takewhile
 from logging import getLogger
 from pathlib import Path
@@ -30,11 +30,10 @@ from wikidated.wikidated_global_stream import (
 )
 from wikidated.wikidated_global_stream import WikidatedGlobalStreamFile
 from wikidated.wikidated_manager import WikidatedManager
+from wikidated.wikidated_v1_0 import WikidatedV1_0Dataset
 
 _LOGGER = getLogger(__name__)
 
-_EXPECTED_NUM_PAGES = 96_646_606  # TODO: expose directly?
-_EXPECTED_NUM_REVISIONS = 1_411_008_075  # TODO: expose directly?
 _PERIOD_AFTER_DUMP_VERSION = timedelta(days=1)
 
 
@@ -70,8 +69,8 @@ def _assert_global_stream_file_structure(wikidated_dataset: WikidatedDataset) ->
         )
         for i in range(1, num_days_in_month + 1):
             day = month.replace(day=i)
-            if (
-                not _WIKIDATA_INCEPTION_DATE
+            if not (
+                _WIKIDATA_INCEPTION_DATE
                 <= day
                 <= wikidated_dataset.dump_version + _PERIOD_AFTER_DUMP_VERSION
             ):
@@ -139,7 +138,7 @@ def _assert_global_stream_revision_iteration(
     for revision in tqdm(
         wikidated_dataset.iter_revisions(),
         desc="Iterating global stream",
-        total=_EXPECTED_NUM_REVISIONS,
+        total=WikidatedV1_0Dataset.NUM_REVISIONS,
     ):
         page_ids.add(revision.page_id)
         num_revisions += 1
@@ -160,7 +159,7 @@ def _assert_entity_streams_page_iteration(
             wikidated_dataset.iter_revisions(min_page_id=0),
             key=lambda revision: revision.page_id,
         ),
-        total=_EXPECTED_NUM_PAGES,
+        total=WikidatedV1_0Dataset.NUM_PAGES,
         desc="Iterating entity streams (page iteration)",
     ):
         num_pages += 1
@@ -182,7 +181,7 @@ def _assert_entity_streams_page_lookup(
     cur_page_id = 0
     for page_id in tqdm(
         wikidated_dataset.iter_page_ids(),
-        total=_EXPECTED_NUM_PAGES,
+        total=WikidatedV1_0Dataset.NUM_PAGES,
         desc="Iterating entity streams (page lookup)",
     ):
         num_pages += 1
@@ -203,10 +202,10 @@ def _main() -> None:
     data_dir = Path("data")
 
     wikidated_manager = WikidatedManager(data_dir)
-    wikidated_manager.configure_logging(log_wdtk=True)
+    wikidated_manager.configure_logging()
 
-    wikidata_dump = wikidated_manager.wikidata_dump(date(year=2021, month=6, day=1))
-    wikidated_dataset = wikidated_manager.load_custom(wikidata_dump)
+    wikidated_dataset = wikidated_manager.v1_0(auto_download=False)
+    wikidated_dataset.download()
 
     _assert_global_stream_file_structure(wikidated_dataset)
     _assert_entity_streams_file_structure(wikidated_dataset)

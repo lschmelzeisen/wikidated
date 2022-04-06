@@ -280,6 +280,9 @@ class WikidatedV1_0Dataset(  # noqa: N801
         WikidatedV1_0GlobalStream,
     ]
 ):
+    NUM_PAGES = 96_646_606
+    NUM_REVISIONS = 1_411_008_075
+
     def download(self) -> None:
         self.entity_streams.download()
         self.global_stream.download()

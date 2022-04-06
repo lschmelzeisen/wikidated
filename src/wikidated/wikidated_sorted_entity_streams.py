@@ -143,29 +143,35 @@ class WikidatedSortedEntityStreamsFile:
         )
 
 
-_T_WikidatedSortedEntityStreamsFile = TypeVar(
-    "_T_WikidatedSortedEntityStreamsFile", bound=WikidatedSortedEntityStreamsFile
+_T_WikidatedSortedEntityStreamsFile_co = TypeVar(
+    "_T_WikidatedSortedEntityStreamsFile_co",
+    bound=WikidatedSortedEntityStreamsFile,
+    covariant=True,
 )
 
 
-class WikidatedGenericSortedEntityStreams(Generic[_T_WikidatedSortedEntityStreamsFile]):
+class WikidatedGenericSortedEntityStreams(
+    Generic[_T_WikidatedSortedEntityStreamsFile_co]
+):
     def __init__(
-        self, files_by_page_ids: RangeMap[_T_WikidatedSortedEntityStreamsFile]
+        self, files_by_page_ids: RangeMap[_T_WikidatedSortedEntityStreamsFile_co]
     ):
         self._files_by_page_ids = files_by_page_ids
 
     def __len__(self) -> int:
         return len(self._files_by_page_ids)
 
-    def __iter__(self) -> Iterator[_T_WikidatedSortedEntityStreamsFile]:
+    def __iter__(self) -> Iterator[_T_WikidatedSortedEntityStreamsFile_co]:
         return iter(self._files_by_page_ids.values())
 
     @overload
-    def __getitem__(self, key: int) -> _T_WikidatedSortedEntityStreamsFile:
+    def __getitem__(self, key: int) -> _T_WikidatedSortedEntityStreamsFile_co:
         ...
 
     @overload
-    def __getitem__(self, key: slice) -> Iterable[_T_WikidatedSortedEntityStreamsFile]:
+    def __getitem__(
+        self, key: slice
+    ) -> Iterable[_T_WikidatedSortedEntityStreamsFile_co]:
         ...
 
     @overload
@@ -175,7 +181,8 @@ class WikidatedGenericSortedEntityStreams(Generic[_T_WikidatedSortedEntityStream
     def __getitem__(
         self, key: object
     ) -> Union[
-        WikidatedSortedEntityStreamsFile, Iterable[_T_WikidatedSortedEntityStreamsFile]
+        WikidatedSortedEntityStreamsFile,
+        Iterable[_T_WikidatedSortedEntityStreamsFile_co],
     ]:
         if isinstance(key, int) or isinstance(key, slice):
             return self._files_by_page_ids[key]

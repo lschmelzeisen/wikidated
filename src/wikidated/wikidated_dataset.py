@@ -42,31 +42,37 @@ from wikidated.wikidated_sorted_entity_streams import (
 
 _LOGGER = getLogger(__name__)
 
-_T_WikidatedEntityStreams = TypeVar(
-    "_T_WikidatedEntityStreams", bound=WikidatedGenericEntityStreams[Any]
+_T_WikidatedEntityStreams_co = TypeVar(
+    "_T_WikidatedEntityStreams_co",
+    bound=WikidatedGenericEntityStreams[Any],
+    covariant=True,
 )
-_T_WikidatedSortedEntityStreams = TypeVar(
-    "_T_WikidatedSortedEntityStreams", bound=WikidatedGenericSortedEntityStreams[Any]
+_T_WikidatedSortedEntityStreams_co = TypeVar(
+    "_T_WikidatedSortedEntityStreams_co",
+    bound=WikidatedGenericSortedEntityStreams[Any],
+    covariant=True,
 )
-_T_WikidatedGlobalStream = TypeVar(
-    "_T_WikidatedGlobalStream", bound=WikidatedGenericGlobalStream[Any]
+_T_WikidatedGlobalStream_co = TypeVar(
+    "_T_WikidatedGlobalStream_co",
+    bound=WikidatedGenericGlobalStream[Any],
+    covariant=True,
 )
 
 
 class WikidatedGenericDataset(
     Generic[
-        _T_WikidatedEntityStreams,
-        _T_WikidatedSortedEntityStreams,
-        _T_WikidatedGlobalStream,
+        _T_WikidatedEntityStreams_co,
+        _T_WikidatedSortedEntityStreams_co,
+        _T_WikidatedGlobalStream_co,
     ]
 ):
     def __init__(
         self,
         dataset_dir: Path,
         dump_version: Optional[date],
-        entity_streams: _T_WikidatedEntityStreams,
-        sorted_entity_streams: _T_WikidatedSortedEntityStreams,
-        global_stream: _T_WikidatedGlobalStream,
+        entity_streams: _T_WikidatedEntityStreams_co,
+        sorted_entity_streams: _T_WikidatedSortedEntityStreams_co,
+        global_stream: _T_WikidatedGlobalStream_co,
     ) -> None:
         self.dataset_dir: Final = dataset_dir
         self.dump_version: Final = dump_version

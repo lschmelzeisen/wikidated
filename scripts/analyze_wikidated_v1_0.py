@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from logging import getLogger
 from math import ceil, floor
 from pathlib import Path
@@ -50,10 +50,9 @@ from tqdm import tqdm  # type: ignore
 from wikidated.wikidata import WikidataRdfTriple
 from wikidated.wikidated_manager import WikidatedManager
 from wikidated.wikidated_revision import WikidatedRevision
+from wikidated.wikidated_v1_0 import WikidatedV1_0Dataset
 
-_EXPECTED_NUM_REVISIONS = 1_411_008_075  # TODO: expose directly?
 _DAY = timedelta(days=1)
-
 _LOGGER = getLogger(__name__)
 
 
@@ -916,11 +915,13 @@ def _main() -> None:
 
     wikidated_manager = WikidatedManager(data_dir)
     wikidated_manager.configure_logging()
-    wikidata_dump = wikidated_manager.wikidata_dump(date(year=2021, month=6, day=1))
-    wikidated_dataset = wikidated_manager.load_custom(wikidata_dump)
+
+    wikidated_dataset = wikidated_manager.v1_0(auto_download=False)
+    wikidated_dataset.entity_streams.download()
 
     for revision in tqdm(
-        wikidated_dataset.iter_revisions(min_page_id=0), total=_EXPECTED_NUM_REVISIONS
+        wikidated_dataset.iter_revisions(min_page_id=0),
+        total=WikidatedV1_0Dataset.NUM_REVISIONS,
     ):
         for figure in figures:
             figure.handle_revision(revision)

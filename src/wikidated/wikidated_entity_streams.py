@@ -283,29 +283,31 @@ _SITES_TABLE: Optional[WikidataDumpSitesTable] = None
 _JVM_MANAGER: Optional[JvmManager] = None
 
 
-_T_WikidatedEntityStreamsFile = TypeVar(
-    "_T_WikidatedEntityStreamsFile", bound=WikidatedEntityStreamsFile
+_T_WikidatedEntityStreamsFile_co = TypeVar(
+    "_T_WikidatedEntityStreamsFile_co",
+    bound=WikidatedEntityStreamsFile,
+    covariant=True,
 )
 
 
-class WikidatedGenericEntityStreams(Generic[_T_WikidatedEntityStreamsFile]):
+class WikidatedGenericEntityStreams(Generic[_T_WikidatedEntityStreamsFile_co]):
     def __init__(
-        self, files_by_page_ids: RangeMap[_T_WikidatedEntityStreamsFile]
+        self, files_by_page_ids: RangeMap[_T_WikidatedEntityStreamsFile_co]
     ) -> None:
         self._files_by_page_ids = files_by_page_ids
 
     def __len__(self) -> int:
         return len(self._files_by_page_ids)
 
-    def __iter__(self) -> Iterator[_T_WikidatedEntityStreamsFile]:
+    def __iter__(self) -> Iterator[_T_WikidatedEntityStreamsFile_co]:
         return iter(self._files_by_page_ids.values())
 
     @overload
-    def __getitem__(self, key: int) -> _T_WikidatedEntityStreamsFile:
+    def __getitem__(self, key: int) -> _T_WikidatedEntityStreamsFile_co:
         ...
 
     @overload
-    def __getitem__(self, key: slice) -> Iterable[_T_WikidatedEntityStreamsFile]:
+    def __getitem__(self, key: slice) -> Iterable[_T_WikidatedEntityStreamsFile_co]:
         ...
 
     @overload
@@ -314,7 +316,7 @@ class WikidatedGenericEntityStreams(Generic[_T_WikidatedEntityStreamsFile]):
 
     def __getitem__(
         self, key: object
-    ) -> Union[WikidatedEntityStreamsFile, Iterable[_T_WikidatedEntityStreamsFile]]:
+    ) -> Union[WikidatedEntityStreamsFile, Iterable[_T_WikidatedEntityStreamsFile_co]]:
         if isinstance(key, int) or isinstance(key, slice):
             return self._files_by_page_ids[key]
         else:
