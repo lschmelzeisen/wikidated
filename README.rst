@@ -21,11 +21,12 @@ Dataset of Wikidata’s Revision History. Wikidata@ISWC. <http://ceur-ws.org/Vol
 If you find this dataset useful or use it in any academic work, please cite it
 as::
 
-    @inproceedings{conf/semweb/SchmelzeisenDS21,
+    @inproceedings{DBLP:conf/semweb/SchmelzeisenDS21,
       author    = {Lukas Schmelzeisen and
                    Corina Dima and
                    Steffen Staab},
-      title     = {{Wikidated 1.0: An Evolving Knowledge Graph Dataset of Wikidata’s Revision History}},
+      title     = {Wikidated 1.0: An Evolving Knowledge Graph Dataset of Wikidata's Revision
+                   History},
       booktitle = {Wikidata@ISWC},
       series    = {{CEUR} Workshop Proceedings},
       volume    = {2982},
