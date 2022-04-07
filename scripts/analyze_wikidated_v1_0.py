@@ -922,6 +922,7 @@ def _main() -> None:
     for revision in tqdm(
         wikidated_dataset.iter_revisions(min_page_id=0),
         total=WikidatedV1_0Dataset.NUM_REVISIONS,
+        dynamic_ncols=True,
     ):
         for figure in figures:
             figure.handle_revision(revision)

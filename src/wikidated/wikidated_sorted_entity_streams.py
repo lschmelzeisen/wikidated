@@ -209,7 +209,9 @@ class WikidatedGenericSortedEntityStreams(
     ) -> WikidatedSortedEntityStreams:
         _LOGGER.debug(f"Building sorted entity streams for dataset {dataset_dir.name}.")
         files_by_page_ids = RangeMap[WikidatedSortedEntityStreamsFile]()
-        for entity_streams_file in tqdm(entity_streams, desc="Sorted Entity Streams"):
+        for entity_streams_file in tqdm(
+            entity_streams, desc="Sorted Entity Streams", dynamic_ncols=True
+        ):
             file = WikidatedSortedEntityStreamsFile.build_custom(
                 dataset_dir, entity_streams_file
             )

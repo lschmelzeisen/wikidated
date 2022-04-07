@@ -389,6 +389,7 @@ class WikidatedGenericGlobalStream(Generic[_T_WikidatedGlobalStreamFile_co]):
                 _WIKIDATA_INCEPTION_DATE.replace(day=1), wikidata_dump_version
             ),
             desc="Global Stream",
+            dynamic_ncols=True,
         ):
             file, sorted_revisions = WikidatedGlobalStreamFile.build_custom(
                 dataset_dir, month, sorted_revisions

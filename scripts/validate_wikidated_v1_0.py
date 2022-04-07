@@ -46,7 +46,9 @@ def _assert_global_stream_file_structure(wikidated_dataset: WikidatedDataset) ->
     )
     max_revision_id = 0
     for global_stream_file in tqdm(
-        wikidated_dataset.global_stream, desc="Validating global stream files"
+        wikidated_dataset.global_stream,
+        desc="Validating global stream files",
+        dynamic_ncols=True,
     ):
         month = global_stream_file.month
         _, num_days_in_month = monthrange(month.year, month.month)
@@ -106,7 +108,9 @@ def _assert_global_stream_file_structure(wikidated_dataset: WikidatedDataset) ->
 def _assert_entity_streams_file_structure(wikidated_dataset: WikidatedDataset) -> None:
     max_page_id = 0
     for entity_streams_file in tqdm(
-        wikidated_dataset.entity_streams, desc="Validating entity streams files"
+        wikidated_dataset.entity_streams,
+        desc="Validating entity streams files",
+        dynamic_ncols=True,
     ):
         page_ids = entity_streams_file.page_ids
         assert len(page_ids) > 0
@@ -139,6 +143,7 @@ def _assert_global_stream_revision_iteration(
         wikidated_dataset.iter_revisions(),
         desc="Iterating global stream",
         total=WikidatedV1_0Dataset.NUM_REVISIONS,
+        dynamic_ncols=True,
     ):
         page_ids.add(revision.page_id)
         num_revisions += 1
@@ -161,6 +166,7 @@ def _assert_entity_streams_page_iteration(
         ),
         total=WikidatedV1_0Dataset.NUM_PAGES,
         desc="Iterating entity streams (page iteration)",
+        dynamic_ncols=True,
     ):
         num_pages += 1
 
@@ -183,6 +189,7 @@ def _assert_entity_streams_page_lookup(
         wikidated_dataset.iter_page_ids(),
         total=WikidatedV1_0Dataset.NUM_PAGES,
         desc="Iterating entity streams (page lookup)",
+        dynamic_ncols=True,
     ):
         num_pages += 1
 
