@@ -20,14 +20,20 @@ from contextlib import contextmanager
 from logging import getLogger
 from os.path import relpath
 from pathlib import Path
+from shutil import rmtree
 from subprocess import DEVNULL, PIPE
-from typing import IO, Iterator, Optional
+from typing import IO, Any, Callable, Iterator, Optional
 
-from typing_extensions import Final
+from typing_extensions import Final, Protocol
 
 from wikidated._utils.misc import external_process
 
 _LOGGER = getLogger(__name__)
+
+
+class _SupportsLessThan(Protocol):
+    def __lt__(self, __other: Any) -> bool:
+        ...
 
 
 class SevenZipArchive:
@@ -36,9 +42,10 @@ class SevenZipArchive:
 
     @classmethod
     def from_dir(cls, dir_: Path, path: Path) -> SevenZipArchive:
+        tmp_path = path.parent / (".tmp." + path.name)
         _LOGGER.debug(f"Creating 7z archive {path} from directory {dir_}.")
         with external_process(
-            ("7z", "a", "-ms=off", relpath(path, dir_), "."),
+            ("7z", "a", "-ms=off", relpath(tmp_path, dir_), "."),
             stdin=DEVNULL,
             stdout=PIPE,
             stderr=PIPE,
@@ -48,6 +55,57 @@ class SevenZipArchive:
             check_return_code_zero=True,
         ) as _:
             pass
+        tmp_path.rename(path)
+        return SevenZipArchive(path)
+
+    @classmethod
+    def from_dir_with_order(
+        cls, dir_: Path, path: Path, key: Callable[[Path], _SupportsLessThan]
+    ) -> SevenZipArchive:
+        tmp_path = path.parent / f".tmp.{path.name}"
+        tmp_dir = path.parent / f".tmp.{path.name}.contents"
+        listfile_rename = path.parent / f".tmp.{path.name}.listfile-rename"
+        _LOGGER.debug(f"Creating ordered 7z archive {path} from directory {dir_}.")
+
+        files = list(dir_.iterdir())
+        files.sort(key=key)
+        ordered_filename_num_digits = len(str(len(files) - 1))
+
+        tmp_dir.mkdir(exist_ok=False, parents=True)
+        with listfile_rename.open("w", encoding="UTF-8") as fout:
+            for i, file in enumerate(files):
+                ordered_filename = f"{i:0{ordered_filename_num_digits}d}"
+                fout.write(f"{ordered_filename}\n{file.name}\n")
+                (tmp_dir / ordered_filename).symlink_to(file.resolve())
+
+        with external_process(
+            ("7z", "a", "-l", "-ms=off", relpath(tmp_path, tmp_dir), "."),
+            stdin=DEVNULL,
+            stdout=PIPE,
+            stderr=PIPE,
+            cwd=tmp_dir,
+            exhaust_stdout_to_log=True,
+            exhaust_stderr_to_log=True,
+            check_return_code_zero=True,
+        ) as _:
+            pass
+
+        rmtree(tmp_dir)
+
+        with external_process(
+            ("7z", "rn", f"{tmp_path}", f"@{listfile_rename}"),
+            stdin=DEVNULL,
+            stdout=PIPE,
+            stderr=PIPE,
+            exhaust_stdout_to_log=True,
+            exhaust_stderr_to_log=True,
+            check_return_code_zero=True,
+        ) as _:
+            pass
+
+        listfile_rename.unlink()
+
+        tmp_path.rename(path)
         return SevenZipArchive(path)
 
     @contextmanager

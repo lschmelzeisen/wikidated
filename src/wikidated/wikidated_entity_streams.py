@@ -229,7 +229,11 @@ class WikidatedEntityStreamsFile:
                     fd.write(wikidated_revision.json() + "\n")
                     yield wikidated_revision
 
-        SevenZipArchive.from_dir(tmp_dir, archive_path)
+        SevenZipArchive.from_dir_with_order(
+            tmp_dir,
+            archive_path,
+            key=lambda path: cls._parse_archive_component_path(path),
+        )
         rmtree(tmp_dir)
 
         _LOGGER.debug(f"Done building entity streams file {archive_path.name}.")

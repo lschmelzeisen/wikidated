@@ -204,7 +204,11 @@ class WikidatedGlobalStreamFile:
 
         archive_path = cls._make_archive_path(dataset_dir, month, revision_ids)
 
-        SevenZipArchive.from_dir(tmp_dir, archive_path)
+        SevenZipArchive.from_dir_with_order(
+            tmp_dir,
+            archive_path,
+            key=lambda path: cls._parse_archive_component_path(path)[0],
+        )
         rmtree(tmp_dir)
 
         _LOGGER.debug(f"Done building global stream file {archive_path.name}.")
