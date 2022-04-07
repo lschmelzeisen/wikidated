@@ -24,10 +24,8 @@ from typing import Tuple
 from tqdm import tqdm  # type: ignore
 
 from wikidated._utils import SevenZipArchive, months_between_dates
+from wikidated.wikidata import WIKIDATA_EARLIEST_REVISION_TIMESTAMP
 from wikidated.wikidated_dataset import WikidatedDataset
-from wikidated.wikidated_global_stream import (
-    _WIKIDATA_INCEPTION_DATE,  # TODO: expose directly?
-)
 from wikidated.wikidated_global_stream import WikidatedGlobalStreamFile
 from wikidated.wikidated_manager import WikidatedManager
 from wikidated.wikidated_v1_0 import WikidatedV1_0Dataset
@@ -41,7 +39,8 @@ def _assert_global_stream_file_structure(wikidated_dataset: WikidatedDataset) ->
     assert wikidated_dataset.dump_version
     expected_months = list(
         months_between_dates(
-            _WIKIDATA_INCEPTION_DATE.replace(day=1), wikidated_dataset.dump_version
+            WIKIDATA_EARLIEST_REVISION_TIMESTAMP.date().replace(day=1),
+            wikidated_dataset.dump_version,
         )
     )
     max_revision_id = 0
@@ -72,7 +71,7 @@ def _assert_global_stream_file_structure(wikidated_dataset: WikidatedDataset) ->
         for i in range(1, num_days_in_month + 1):
             day = month.replace(day=i)
             if not (
-                _WIKIDATA_INCEPTION_DATE
+                WIKIDATA_EARLIEST_REVISION_TIMESTAMP.date()
                 <= day
                 <= wikidated_dataset.dump_version + _PERIOD_AFTER_DUMP_VERSION
             ):

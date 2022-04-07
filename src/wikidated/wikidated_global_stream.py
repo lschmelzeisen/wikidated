@@ -46,11 +46,11 @@ from wikidated._utils import (
     months_between_dates,
     next_month,
 )
+from wikidated.wikidata import WIKIDATA_EARLIEST_REVISION_TIMESTAMP
 from wikidated.wikidated_revision import WikidatedRevision
 from wikidated.wikidated_sorted_entity_streams import WikidatedSortedEntityStreams
 
 _LOGGER = getLogger(__name__)
-_WIKIDATA_INCEPTION_DATE = date(year=2012, month=10, day=29)
 
 
 class WikidatedGlobalStreamFile:
@@ -180,7 +180,7 @@ class WikidatedGlobalStreamFile:
         revision_ids: Optional[range] = None
 
         for day in days_between_dates(month, next_month(month) - timedelta(days=1)):
-            if day < _WIKIDATA_INCEPTION_DATE:
+            if day < WIKIDATA_EARLIEST_REVISION_TIMESTAMP.date():
                 continue
 
             revision_ids_of_day, revisions = cls._write_revisions_of_day(
@@ -386,7 +386,8 @@ class WikidatedGenericGlobalStream(Generic[_T_WikidatedGlobalStreamFile_co]):
         files_by_revision_ids = RangeMap[WikidatedGlobalStreamFile]()
         for month in tqdm(
             months_between_dates(
-                _WIKIDATA_INCEPTION_DATE.replace(day=1), wikidata_dump_version
+                WIKIDATA_EARLIEST_REVISION_TIMESTAMP.date().replace(day=1),
+                wikidata_dump_version,
             ),
             desc="Global Stream",
             dynamic_ncols=True,

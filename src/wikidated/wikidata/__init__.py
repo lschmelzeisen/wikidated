@@ -15,7 +15,10 @@
 #
 
 from wikidated.wikidata.wikidata_api import WikidataApi
-from wikidated.wikidata.wikidata_dump import WikidataDump
+from wikidated.wikidata.wikidata_dump import (
+    WIKIDATA_EARLIEST_REVISION_TIMESTAMP,
+    WikidataDump,
+)
 from wikidated.wikidata.wikidata_dump_file import WikidataDumpFile
 from wikidated.wikidata.wikidata_dump_pages_meta_history import (
     WikidataDumpPagesMetaHistory,
@@ -38,6 +41,7 @@ from wikidated.wikidata.wikidata_revision_base import (
 
 __all__ = [
     "WikidataApi",
+    "WIKIDATA_EARLIEST_REVISION_TIMESTAMP",
     "WikidataDump",
     "WikidataDumpFile",
     "WikidataDumpPagesMetaHistory",

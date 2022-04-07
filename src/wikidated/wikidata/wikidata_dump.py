@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from logging import getLogger
 from pathlib import Path
 from typing import Mapping, MutableSequence, Sequence, Type, TypeVar
@@ -36,6 +36,11 @@ from wikidated.wikidata.wikidata_dump_pages_meta_history import (
 from wikidated.wikidata.wikidata_dump_sites_table import WikidataDumpSitesTable
 
 _LOGGER = getLogger(__name__)
+
+# Wikidata's earliest revision has ID 16 and is of entity Q15 (page_id: 111).
+WIKIDATA_EARLIEST_REVISION_TIMESTAMP = datetime(
+    year=2012, month=10, day=29, hour=17, minute=3, second=21, tzinfo=timezone.utc
+)
 
 _T_WikidataDumpFile = TypeVar("_T_WikidataDumpFile", bound=WikidataDumpFile)
 
