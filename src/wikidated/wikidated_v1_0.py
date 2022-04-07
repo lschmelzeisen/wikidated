@@ -23,6 +23,8 @@ from logging import getLogger
 from pathlib import Path
 from typing import Iterator, Optional
 
+from tqdm import tqdm  # type: ignore
+
 from wikidated._utils import RangeMap, download_file_with_progressbar, hashcheck
 from wikidated.wikidated_dataset import WikidatedGenericDataset
 from wikidated.wikidated_entity_streams import (
@@ -202,7 +204,12 @@ class WikidatedV1_0EntityStreams(  # noqa: N801
     WikidatedGenericEntityStreams[WikidatedV1_0EntityStreamsFile]
 ):
     def download(self) -> None:
-        for file in self:
+        for file in tqdm(
+            self,
+            desc="Downloading Wikidated 1.0 Entity Streams",
+            dynamic_ncols=True,
+            position=1,
+        ):
             file.download()
 
     @classmethod
@@ -225,7 +232,12 @@ class WikidatedV1_0SortedEntityStreams(  # noqa: N801
     WikidatedGenericSortedEntityStreams[WikidatedV1_0SortedEntityStreamsFile]
 ):
     def download(self) -> None:
-        for file in self:
+        for file in tqdm(
+            self,
+            desc="Downloading Wikidated 1.0 Sorted Entity Streams",
+            dynamic_ncols=True,
+            position=1,
+        ):
             file.download()
 
     @classmethod
@@ -252,7 +264,12 @@ class WikidatedV1_0GlobalStream(  # noqa: N801
     WikidatedGenericGlobalStream[WikidatedV1_0GlobalStreamFile]
 ):
     def download(self) -> None:
-        for file in self:
+        for file in tqdm(
+            self,
+            desc="Downloading Wikidated 1.0 Global Stream",
+            dynamic_ncols=True,
+            position=1,
+        ):
             file.download()
 
     @classmethod
