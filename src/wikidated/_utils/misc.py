@@ -17,16 +17,38 @@
 from contextlib import contextmanager
 from datetime import date, timedelta
 from errno import EEXIST
+from itertools import islice
 from logging import getLogger
 from pathlib import Path
 from subprocess import PIPE, Popen, TimeoutExpired
-from typing import IO, TYPE_CHECKING, Iterator, Optional, Sequence, Union
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Iterable,
+    Iterator,
+    Optional,
+    Sequence,
+    TypeVar,
+    Union,
+)
 
 import requests
 from tqdm import tqdm  # type: ignore
 from typing_extensions import Protocol
 
 _LOGGER = getLogger(__name__)
+
+_T = TypeVar("_T")
+
+
+def chunked(iterable: Iterable[_T], size: int) -> Iterable[Sequence[_T]]:
+    # From: https://stackoverflow.com/a/66365466
+    iterator = iter(iterable)
+
+    def make_chunk() -> Sequence[_T]:
+        return list(islice(iterator, size))
+
+    return iter(make_chunk, [])
 
 
 def next_month(day: date) -> date:

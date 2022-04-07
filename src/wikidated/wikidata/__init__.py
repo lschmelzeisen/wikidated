@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+from wikidated.wikidata.wikidata_api import WikidataApi
 from wikidated.wikidata.wikidata_dump import WikidataDump
 from wikidated.wikidata.wikidata_dump_file import WikidataDumpFile
 from wikidated.wikidata.wikidata_dump_pages_meta_history import (
@@ -36,6 +37,7 @@ from wikidated.wikidata.wikidata_revision_base import (
 )
 
 __all__ = [
+    "WikidataApi",
     "WikidataDump",
     "WikidataDumpFile",
     "WikidataDumpPagesMetaHistory",

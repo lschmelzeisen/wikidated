@@ -73,12 +73,6 @@ class WikidatedManager:
             self.data_dir / "wikidated-1.0", auto_download=auto_download
         )
 
-    def page_id_from_entity_id(self, entity_id: str) -> int:
-        raise NotImplementedError()  # TODO
-
-    def entity_id_from_page_id(self, page_id: int) -> str:
-        raise NotImplementedError()  # TODO
-
     def configure_logging(
         self,
         *,

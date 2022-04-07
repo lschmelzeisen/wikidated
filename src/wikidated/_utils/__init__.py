@@ -21,6 +21,7 @@ from wikidated._utils.java_dependency_downloader import (
 from wikidated._utils.jvm_manager import JvmManager
 from wikidated._utils.misc import (
     Hash,
+    chunked,
     days_between_dates,
     download_file_with_progressbar,
     external_process,
@@ -44,6 +45,7 @@ __all__ = [
     "JavaDependencyDownloader",
     "JvmManager",
     "Hash",
+    "chunked",
     "days_between_dates",
     "download_file_with_progressbar",
     "external_process",
