@@ -85,7 +85,7 @@ class _WikidataApiResult(PydanticModel):
 
 
 class WikidataApi:
-    WIKIDATA_API_CHUNK_SIZE = 50
+    _WIKIDATA_API_CHUNK_SIZE = 50
 
     # TODO: document that these are made against live Wikidata and how that could be
     #  different.
@@ -101,7 +101,7 @@ class WikidataApi:
     def query_page_ids(
         cls, page_ids: Iterable[int]
     ) -> Iterator[Optional[WikidataEntityMetadata]]:
-        for page_ids_chunk in chunked(page_ids, cls.WIKIDATA_API_CHUNK_SIZE):
+        for page_ids_chunk in chunked(page_ids, cls._WIKIDATA_API_CHUNK_SIZE):
             response = requests.get(
                 "https://www.wikidata.org/w/api.php?action=query&format=json"
                 "&pageids=" + "|".join(str(p) for p in page_ids_chunk)
@@ -139,7 +139,7 @@ class WikidataApi:
     def query_entity_ids(
         cls, entity_ids: Iterable[str]
     ) -> Iterator[Optional[WikidataEntityMetadata]]:
-        for entity_ids_chunk in chunked(entity_ids, cls.WIKIDATA_API_CHUNK_SIZE):
+        for entity_ids_chunk in chunked(entity_ids, cls._WIKIDATA_API_CHUNK_SIZE):
             response = requests.get(
                 "https://www.wikidata.org/w/api.php?action=query&format=json"
                 "&titles=" + "|".join(str(e) for e in entity_ids_chunk)
@@ -180,7 +180,7 @@ class WikidataApi:
     def query_revision_ids(
         cls, revision_ids: Iterable[int]
     ) -> Iterator[Optional[WikidataRevisionBase]]:
-        for revision_ids_chunk in chunked(revision_ids, cls.WIKIDATA_API_CHUNK_SIZE):
+        for revision_ids_chunk in chunked(revision_ids, cls._WIKIDATA_API_CHUNK_SIZE):
             response = requests.get(
                 "https://www.wikidata.org/w/api.php?action=query&format=json"
                 "&prop=revisions&rvprop=ids|flags|timestamp|user|userid|sha1|comment"
