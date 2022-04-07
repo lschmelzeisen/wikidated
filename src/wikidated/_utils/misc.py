@@ -41,14 +41,10 @@ _LOGGER = getLogger(__name__)
 _T = TypeVar("_T")
 
 
+# Adapted from: https://stackoverflow.com/a/66365466
 def chunked(iterable: Iterable[_T], size: int) -> Iterable[Sequence[_T]]:
-    # From: https://stackoverflow.com/a/66365466
     iterator = iter(iterable)
-
-    def make_chunk() -> Sequence[_T]:
-        return list(islice(iterator, size))
-
-    return iter(make_chunk, [])
+    return iter(lambda: tuple(islice(iterator, size)), ())
 
 
 def next_month(day: date) -> date:
