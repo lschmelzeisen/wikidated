@@ -178,7 +178,9 @@ class WikidatedGenericDataset(
                 yield from ()
         elif min_page_id is not None or max_page_id is not None:
             entity_streams_files = self.entity_streams[
-                (min_page_id or 0) : (max_page_id + 1 or maxsize)
+                (min_page_id or 0) : (
+                    max_page_id + 1 if max_page_id is not None else maxsize
+                )
             ]
             for entity_streams_file in entity_streams_files:
                 yield from entity_streams_file.iter_revisions(
