@@ -44,6 +44,8 @@ class SevenZipArchive:
     def from_dir(cls, dir_: Path, path: Path) -> SevenZipArchive:
         tmp_path = path.parent / (".tmp." + path.name)
         _LOGGER.debug(f"Creating 7z archive {path} from directory {dir_}.")
+        if tmp_path.exists():
+            tmp_path.unlink()
         with external_process(
             ("7z", "a", "-ms=off", relpath(tmp_path, dir_), "."),
             stdin=DEVNULL,
@@ -78,6 +80,8 @@ class SevenZipArchive:
                 fout.write(f"{ordered_filename}\n{file.name}\n")
                 (tmp_dir / ordered_filename).symlink_to(file.resolve())
 
+        if tmp_path.exists():
+            tmp_path.unlink()
         with external_process(
             ("7z", "a", "-l", "-ms=off", relpath(tmp_path, tmp_dir), "."),
             stdin=DEVNULL,
