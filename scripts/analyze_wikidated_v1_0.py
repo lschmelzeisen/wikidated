@@ -422,10 +422,9 @@ class FigureNumRevisionsPerEntity(FigureBase):
         if self._last_page_id != revision.page_id:
             if self._last_page_id != 0:
                 self._num_revisions_counter[self._num_revisions_of_cur_entity] += 1
-                self._num_revisions_of_cur_entity = 0
+            self._num_revisions_of_cur_entity = 0
             self._last_page_id = revision.page_id
-        else:
-            self._num_revisions_of_cur_entity += 1
+        self._num_revisions_of_cur_entity += 1
 
     def log_statistics(self) -> None:
         super().log_statistics()
@@ -507,7 +506,9 @@ class FigureTimedeltaBetweenRevisions(FigureBase):
                 floor(timedelta_since_last_revision / _DAY)
             ] += 1
             for i, (_, bin_boundary) in enumerate(self._bin_boundaries):
-                if timedelta_since_last_revision < bin_boundary:
+                if timedelta_since_last_revision < 0:
+                    break
+                if timedelta_since_last_revision <= bin_boundary:
                     self._bin_data[i] += 1
                     break
             else:
