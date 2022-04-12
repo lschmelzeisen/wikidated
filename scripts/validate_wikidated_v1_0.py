@@ -158,7 +158,8 @@ def _assert_entity_streams_page_iteration(
 ) -> Tuple[int, int]:
     num_pages = 0
     num_revisions = 0
-    for _page_id, revisions in tqdm(
+    cur_page_id = 0
+    for page_id, revisions in tqdm(
         groupby(
             wikidated_dataset.iter_revisions(min_page_id=0),
             key=lambda revision: revision.page_id,
@@ -168,6 +169,8 @@ def _assert_entity_streams_page_iteration(
         dynamic_ncols=True,
     ):
         num_pages += 1
+        assert cur_page_id < page_id
+        cur_page_id = page_id
 
         cur_revision_id = 0
         for revision in revisions:
@@ -191,7 +194,6 @@ def _assert_entity_streams_page_lookup(
         dynamic_ncols=True,
     ):
         num_pages += 1
-
         assert cur_page_id < page_id
         cur_page_id = page_id
 
