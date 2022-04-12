@@ -506,7 +506,7 @@ class FigureTimedeltaBetweenRevisions(FigureBase):
                 floor(timedelta_since_last_revision / _DAY)
             ] += 1
             for i, (_, bin_boundary) in enumerate(self._bin_boundaries):
-                if timedelta_since_last_revision < 0:
+                if timedelta_since_last_revision < timedelta(0):
                     break
                 if timedelta_since_last_revision <= bin_boundary:
                     self._bin_data[i] += 1
