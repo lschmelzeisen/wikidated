@@ -110,11 +110,8 @@ class WikidatedEntityStreamsFile:
         if not self.archive_path.exists():
             raise FileNotFoundError(self.archive_path)
         archive = SevenZipArchive(self.archive_path)
-        for page_id, _component_file_name in sorted(
-            (WikidatedEntityStreamsFile._parse_archive_component_path(Path(c)), c)
-            for c in archive.iter_file_names()
-        ):
-            yield page_id
+        for path in archive.iter_file_names():
+            yield WikidatedEntityStreamsFile._parse_archive_component_path(path)
 
     @classmethod
     def archive_path_glob(cls, dataset_dir: Path) -> str:
