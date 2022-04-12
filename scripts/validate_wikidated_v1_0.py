@@ -83,7 +83,7 @@ def _assert_global_stream_file_structure(wikidated_dataset: WikidatedDataset) ->
                 )
             )
             components = components[len(components_of_day) :]
-            if day > wikidated_dataset and not components_of_day:
+            if day > wikidated_dataset.dump_version and not components_of_day:
                 # In _PERIOD_AFTER_DUMP_VERSION.
                 continue
             assert len(components_of_day) == 1
