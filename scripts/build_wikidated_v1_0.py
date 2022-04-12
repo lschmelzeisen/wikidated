@@ -28,7 +28,9 @@ def _main() -> None:
     data_dir.mkdir(exist_ok=True, parents=True)
 
     wikidated_manager = WikidatedManager(data_dir)
-    wikidated_manager.configure_logging(log_wdtk=True)
+    wikidated_manager.configure_logging(
+        log_wdtk=True, file_path=data_dir / "wikidated-1.0-build.log"
+    )
     wikidated_manager.download_java_dependencies()
 
     wikidata_dump = wikidated_manager.wikidata_dump(date(year=2021, month=6, day=1))

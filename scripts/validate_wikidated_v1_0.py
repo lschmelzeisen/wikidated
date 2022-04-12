@@ -210,7 +210,9 @@ def _main() -> None:
     data_dir = Path("data")
 
     wikidated_manager = WikidatedManager(data_dir)
-    wikidated_manager.configure_logging()
+    wikidated_manager.configure_logging(
+        file_path=data_dir / "wikidated-1.0-validate.log"
+    )
 
     wikidated_dataset = wikidated_manager.v1_0(auto_download=False)
     wikidated_dataset.download()

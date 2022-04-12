@@ -915,7 +915,9 @@ def _main() -> None:
     )
 
     wikidated_manager = WikidatedManager(data_dir)
-    wikidated_manager.configure_logging()
+    wikidated_manager.configure_logging(
+        file_path=data_dir / "wikidated-1.0-analyze.log"
+    )
 
     wikidated_dataset = wikidated_manager.v1_0(auto_download=False)
     wikidated_dataset.entity_streams.download()
